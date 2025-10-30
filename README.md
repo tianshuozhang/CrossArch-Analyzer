@@ -90,4 +90,19 @@ Output：一个专门为ECharts饼图/柱状图准备的、格式非常简单的
 
 3. 在脚本中，使用SentenceTransformerEmbeddings将文本块向量化，然后存入一个本地的Chroma向量数据库中。
 
- 
+ ## Usage
+ 参考前后端各自的Readme文档，启动后端命令是
+
+```bash
+python run.py
+```
+
+需要安装db,Flask
+
+启动前端命令是：
+
+```bash
+npm run serve
+```
+
+需要安装nodejs
