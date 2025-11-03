@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate,SystemMessagePromptTemplat
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from langchain_core.output_parsers import StrOutputParser
 
 # 3. 使用示例
 llm = ChatOpenAI(
@@ -35,11 +36,13 @@ chat_prompt = ChatPromptTemplate.from_messages(
     [system_message_prompt, human_message_prompt]
 )
 
-chain = chat_prompt | llm  # 使用 | 连接
+output_parser = StrOutputParser()
+
+chain = chat_prompt | llm | output_parser  # 使用 | 连接
 
 # 调用链，内部使用 invoke
-response = chain.invoke({"language": "英语", "text": "你好，世界！"})
-print(response.content)
+# response = chain.invoke({"language": "英语", "text": "你好，世界！"})
+# print(response.content)
 
 # 流式调用
 for s in chain.stream({"language": "英语", "text": "你好，世界！"}):
