@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  crossarch_analyzer:
+    build: ./LLM  # Dockerfile所在目录
+    container_name: crossarch_analyzer
+    ports:
+      - "5000:5000"  # 端口映射（若使用Flask）
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}  # 传递环境变量
+      - OPENAI_API_BASE=${OPENAI_API_BASE}
+    volumes:
+      - ./LLM:/LLM  # 本地代码映射（开发模式）
+    restart: unless-stopped

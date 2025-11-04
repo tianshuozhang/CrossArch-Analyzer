@@ -9,6 +9,7 @@ from core.asm_query_tool import AsmQueryTool
 from core.intrinsics_tool import IntrinsicsTool
 from core.rule_engine import RuleEngine
 from config import ARCH_MACROS, INTRINSICS_MAPPING
+from function_parser_tool import FunctionParserTool
 
 class OrchestratorAgent:
     """主控智能体：负责任务分解和工具编排"""
@@ -21,7 +22,8 @@ class OrchestratorAgent:
         self.asm_tool = AsmQueryTool()
         self.intrinsics_tool = IntrinsicsTool(INTRINSICS_MAPPING)
         self.rule_engine = RuleEngine()
-        
+        self.function_parser = FunctionParserTool()
+
         # 系统提示词
         self.system_prompt = SystemMessage(content="""
         你是一个专业的代码架构分析引擎。你的任务是将C/C++代码按指令集架构分类。
