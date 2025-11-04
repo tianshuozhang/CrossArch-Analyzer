@@ -33,7 +33,7 @@ class CrossFileCorrelator:
         遍历所有报告，构建全局的符号->架构实现表和调用图。
         """
         logger.info("正在构建全局符号表和调用图...")
-        for report in self.all_reports:
+        for _,report in self.all_reports.items():
             file_path = report.get('file_path', 'unknown_file')
             
             # 聚合函数定义

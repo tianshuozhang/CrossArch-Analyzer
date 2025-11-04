@@ -85,7 +85,7 @@ def main():
 
     # 1. 环境设置
     setup_environment()
-     project_root = "./test_project" # <--- 请将此路径修改为测试项目根目录
+    project_root = "./test_project" # <--- 请将此路径修改为测试项目根目录
 
     # 2. 初始化组件
     orchestrator = initialize_components()
@@ -112,7 +112,6 @@ def main():
     
     # 5. 生成报告
     generate_summary_report(single_file_results)
-
 
     print("\n--- [阶段 3]执行项目级关联分析与可视化数据生成 ---")
     # a. 关联分析，发现深层问题
@@ -148,22 +147,6 @@ def main():
     # 保存状态
     orchestrator.save_agent_state()
 
-    # try:
-    #     with open("test_code.cpp", "r") as f:
-    #         code_content = f.read()
-        
-    #     result = orchestrator.analyze_code(code_content, "test_code.cpp")
-    #     print("分析结果:", json.dumps(result, indent=2))
-        
-    #     # 获取Agent状态
-    #     status = orchestrator.get_agent_status()
-    #     print("Agent状态:", status)
-        
-    #     # 保存状态
-    #     orchestrator.save_agent_state()
-        
-    # except Exception as e:
-    #     print(f"分析错误: {e}")
 
 if __name__ == "__main__":
 

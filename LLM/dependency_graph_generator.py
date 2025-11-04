@@ -1,6 +1,6 @@
 import logging
 from typing import Dict, Any, List
-from LLM.services.cross_file_correlator import CrossFileCorrelator
+from services.cross_file_correlator import CrossFileCorrelator
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
