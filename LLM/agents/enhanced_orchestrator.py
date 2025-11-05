@@ -5,6 +5,7 @@ from typing import Dict, Any, List, Optional
 import json
 from datetime import datetime
 
+from function_parser_tool import FunctionParserTool
 from core.preprocessor_tool import PreprocessorTool
 from core.asm_query_tool import AsmQueryTool
 from core.intrinsics_tool import IntrinsicsTool
@@ -27,6 +28,7 @@ class EnhancedOrchestratorAgent:
         self.asm_tool = AsmQueryTool()
         self.intrinsics_tool = IntrinsicsTool(INTRINSICS_MAPPING)
         self.rule_engine = RuleEngine()
+        self.function_parser = FunctionParserTool()
         
         # 初始化增强组件
         self.state_manager = StateManager()
@@ -192,8 +194,15 @@ class EnhancedOrchestratorAgent:
             )
             # print("🔄 规则引擎推理完成")
 
+            defined_funcs_raw, called_funcs_raw = self.function_parser.parse(code, file_path)  # 调用函数解析工具
+            defined_functions = self._associate_functions_with_arch(defined_funcs_raw, classifications)  # 关联架构
+
             # 生成报告
-            report = self._generate_enhanced_report(classifications, file_path, session_id,system_message)
+            report = self._generate_enhanced_report(
+                classifications, file_path, session_id, system_message,
+                defined_functions=defined_functions,  
+                called_functions=called_funcs_raw     
+            )
 
             # print("🔄 增强报告生成完成")
             # 更新状态和记忆
@@ -215,6 +224,46 @@ class EnhancedOrchestratorAgent:
             )
             raise e
     
+    def _associate_functions_with_arch(self, raw_funcs: List[Dict], classifications: List[Dict]) -> List[Dict]:
+        """
+        [辅助方法] 将原始函数定义列表与行级架构分类结果进行关联。
+        """
+        associated_functions = []
+        # 创建一个行号到架构的快速查找字典，提高效率
+        # 注意：这里的 'category' 字段名需要与你的 rule_engine 输出保持一致
+        line_to_arch_map = {item['line']: item.get('category', 'Generic') for item in classifications}
+
+        for func in raw_funcs:
+            line_num = func['line_number']
+            # 从map中查找该行对应的架构，找不到则默认为'Generic'
+            arch = line_to_arch_map.get(line_num, 'Generic')
+            
+            associated_functions.append({
+                "name": func['name'],
+                "architecture": arch,
+                "line_number": line_num
+            })
+        return associated_functions
+
+    def _generate_enhanced_report(self, classifications: List[Dict], file_path: str, session_id: str, 
+                                  system_message: str, defined_functions: List[Dict], 
+                                  called_functions: List[Dict]) -> Dict[str, Any]:
+        """
+        [辅助方法] 创建最终的JSON报告结构，已扩展以包含函数信息。
+        """
+        return {
+            "file_path": file_path,
+            "session_id": session_id,
+            "system_context": system_message, # 保留上下文信息，便于调试
+            "line_details": classifications,
+            "defined_functions": defined_functions, 
+            "called_functions": called_functions    
+        }
+
+    def _build_context_window(self, code: str, file_path: str) -> str:
+        # 示例实现
+        return f"File: {file_path}\n\n```c++\n{code[:1000]}...\n```"
+
     def _update_after_analysis(self, report: Dict[str, Any], code: str, 
                               file_path: str, session_id: str):
         """分析后更新状态和记忆"""
