@@ -61,3 +61,4 @@ package-lock.json
 **/__pycache__/
 **/state/
 **/result/
+LLM/models/
