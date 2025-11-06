@@ -3,7 +3,6 @@ from typing import List, Dict, Any, Tuple
 
 clang.cindex.Config.set_library_path('/path/to/your/llvm/lib')
 
-
 class FunctionParserTool:
     """使用 libclang 解析C/C++代码，提取函数定义和调用。"""
 
