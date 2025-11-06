@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 import json
 from datetime import datetime
 
-from function_parser_tool import FunctionParserTool
+from core.function_parser_tool import FunctionParserTool
 from core.preprocessor_tool import PreprocessorTool
 from core.asm_query_tool import AsmQueryTool
 from core.intrinsics_tool import IntrinsicsTool
@@ -34,6 +34,9 @@ class EnhancedOrchestratorAgent:
         self.state_manager = StateManager()
         self.memory_manager = MemoryManager()
         self.communication_bus = CommunicationBus()
+
+        self.load_agent_state()
+            
         
         # 注册到通信总线
         self.communication_bus.register_agent(self.agent_id, self)
@@ -194,7 +197,7 @@ class EnhancedOrchestratorAgent:
             )
             # print("🔄 规则引擎推理完成")
 
-            defined_funcs_raw, called_funcs_raw = self.function_parser.parse(code, file_path)  # 调用函数解析工具
+            defined_funcs_raw, called_funcs_raw = self.function_parser.parse_functions(code, file_path)  # 调用函数解析工具
             defined_functions = self._associate_functions_with_arch(defined_funcs_raw, classifications)  # 关联架构
 
             # 生成报告
@@ -260,9 +263,9 @@ class EnhancedOrchestratorAgent:
             "called_functions": called_functions    
         }
 
-    def _build_context_window(self, code: str, file_path: str) -> str:
-        # 示例实现
-        return f"File: {file_path}\n\n```c++\n{code[:1000]}...\n```"
+    # def _build_context_window(self, code: str, file_path: str) -> str:
+    #     # 示例实现
+    #     return f"File: {file_path}\n\n```c++\n{code[:1000]}...\n```"
 
     def _update_after_analysis(self, report: Dict[str, Any], code: str, 
                               file_path: str, session_id: str):
@@ -388,7 +391,9 @@ class EnhancedOrchestratorAgent:
         state = self.state_manager.load_state(self.agent_id, format_type, version)
         if state:
             self.current_state.update(state.get("current_state", {}))
+            print("load existing agent state")  # 加载已有状态
             return True
+        print("initialize new agent state")  # 初始化新状态
         return False
     
     def get_agent_status(self) -> Dict[str, Any]:
