@@ -1,8 +1,7 @@
 import clang.cindex
 from typing import List, Dict, Any, Tuple
 
-# clang.cindex.Config.set_library_path('/path/to/your/llvm/lib')
-clang.cindex.Config.set_library_path('D:\\LLVM\\bin')
+clang.cindex.Config.set_library_path('/path/to/your/llvm/lib')
 
 
 class FunctionParserTool:
