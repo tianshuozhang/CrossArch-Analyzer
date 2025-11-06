@@ -7,7 +7,7 @@ from services.build_system_analyzer import BuildSystemAnalyzer
 from services.cross_file_correlator import CrossFileCorrelator
 from dependency_graph_generator import DependencyGraphGenerator
 # from utils import setup_environment,load_test_cases,run_batch_analysis,generate_summary_report,save_results_to_json
-from utils import setup_environment, load_test_cases, run_batch_analysis, generate_summary_report
+from utils import setup_environment, load_test_cases, run_batch_analysis, generate_summary_report,generate_project_level_report, save_project_report
 
 def initialize_components():
     """初始化所有核心组件"""
@@ -15,11 +15,12 @@ def initialize_components():
     try:
         #配置LLM
         llm_config = {
-            "model": "deepseek-v3:671b",
+            "model": "deepseek-v3:671b",  # 模型名称
             "openai_api_key": os.environ["OPENAI_API_KEY"],
             "openai_api_base": os.environ["OPENAI_API_BASE"],
             "temperature": 0.2
         }
+
         # 创建主Agent
         orchestrator = EnhancedOrchestratorAgent(llm_config, "main_orchestrator")
 
@@ -47,35 +48,7 @@ def initialize_components():
         print(f"❌ 初始化错误: {e}")
         return None
 
-# 新增用于打印项目级风险报告的函数
-def generate_project_level_report(issues: list):
-    """打印项目级的风险报告"""
-    print("\n" + "="*25 + " 项目级风险报告 " + "="*25)
-    if not issues:
-        print("✅ 未发现项目级的多架构实现缺失问题。")
-        return
-    
-    print(f"⚠️ 发现 {len(issues)} 个潜在的项目级问题：")
-    for i, issue in enumerate(issues, 1):
-        print(f"\n--- 问题 {i}: {issue['type']} ---")
-        print(f"  函数: {issue['function_name']}")
-        print(f"  已实现架构: {list(issue['implemented_in'].keys())}")
-        print(f"  缺失实现架构: {issue['missing_for_arch']}")
-        print(f"  调用位置 (部分): {issue['called_from'][:3]}")
-        print(f"  修复建议: {issue['suggestion']}")
-    print("="*68)
 
-# 新增用于保存最终完整项目报告的函数
-def save_project_report(report_data: dict, output_path: str):
-    """将包含所有分析结果的完整项目报告保存为JSON文件"""
-    print(f"\n💾 正在保存完整项目报告到: {output_path}")
-    try:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(report_data, f, indent=2, ensure_ascii=False)
-        print("✅ 完整报告保存成功。")
-    except Exception as e:
-        print(f"❌ 保存完整报告失败: {e}")
         
 def main():
     """主函数"""

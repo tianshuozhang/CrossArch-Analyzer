@@ -4,6 +4,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from sentence_transformers import SentenceTransformer
 import faiss
+import os
 
 @dataclass
 class MemoryItem:
@@ -19,8 +20,9 @@ class MemoryManager:
     
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         # 初始化文本嵌入模型
+
         self.embedding_model = SentenceTransformer(model_name)
-        
+
         # 创建FAISS向量索引
         self.vector_dim = 384  # all-MiniLM-L6-v2的维度
         self.index = faiss.IndexFlatIP(self.vector_dim)  # 内积相似度

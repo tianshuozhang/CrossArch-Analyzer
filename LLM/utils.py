@@ -2,127 +2,17 @@ import os
 from typing import Dict, Any
 import json
 from core.state_manager import AgentStateEncoder
+from config import TEST_CASES
 def setup_environment():
     """设置环境变量和配置"""
     # 设置LLM API配置（根据你的实际API修改）
-    os.environ["OPENAI_API_KEY"] = "a21f78197ba7ada844c0479eb42459cf7be1a5cde7b57bc080e1123836654c23"
-    os.environ["OPENAI_API_BASE"] = " https://uni-api.cstcloud.cn/v1 "
+    os.environ["OPENAI_API_KEY"] = "a21f78197ba7ada844c0479eb42459cf7be1a5cde7b57bc080e1123836654b23"
+    os.environ["OPENAI_API_BASE"] = "https://uni-api.cstcloud.cn/v1"
     
     print("✅ 环境配置完成")
 def load_test_cases() -> Dict[str, str]:
     """加载测试用例代码"""
-    test_cases = {
-        "arm_example.c": """
-#include <stdio.h>
-#include <arm_neon.h>
-
-#ifdef __arm__
-    #define ARM_SPECIFIC 1
-#else
-    #define ARM_SPECIFIC 0
-#endif
-
-int main() {
-    #ifdef __arm__
-        printf("Running on ARM architecture\\n");
-        
-        // ARM NEON 内联汇编示例
-        float32x4_t a = vdupq_n_f32(1.0f);
-        float32x4_t b = vdupq_n_f32(2.0f);
-        float32x4_t result = vaddq_f32(a, b);
-        
-        printf("NEON vector addition completed\\n");
-    #endif
-    
-    return 0;
-}
-        """,
-        
-        "x86_example.cpp": """
-#include <iostream>
-#include <xmmintrin.h>
-
-#ifdef __x86_64__
-    #define X86_SPECIFIC 1
-#else
-    #define X86_SPECIFIC 0
-#endif
-
-int main() {
-    #ifdef __x86_64__
-        std::cout << "Running on x86_64 architecture" << std::endl;
-        
-        // SSE 内置函数示例
-        __m128 a = _mm_set_ps(1.0f, 2.0f, 3.0f, 4.0f);
-        __m128 b = _mm_set_ps(5.0f, 6.0f, 7.0f, 8.0f);
-        __m128 result = _mm_add_ps(a, b);
-        
-        std::cout << "SSE vector addition completed" << std::endl;
-    #endif
-    
-    // 内联汇编示例
-    asm("nop");
-    
-    return 0;
-}
-        """,
-        
-        "multi_arch_example.c": """
-#include <stdio.h>
-
-// 多架构支持示例
-#if defined(__arm__)
-    #define ARCH_NAME "ARM"
-    #define ARCH_FEATURE "NEON"
-#elif defined(__x86_64__)
-    #define ARCH_NAME "x86_64"
-    #define ARCH_FEATURE "SSE/AVX"
-#elif defined(__riscv)
-    #define ARCH_NAME "RISC-V"
-    #define ARCH_FEATURE "V Extension"
-#else
-    #define ARCH_NAME "Unknown"
-    #define ARCH_FEATURE "Generic"
-#endif
-
-int main() {
-    printf("Architecture: %s\\n", ARCH_NAME);
-    printf("Feature: %s\\n", ARCH_FEATURE);
-    
-    // 条件编译的不同实现
-    #ifdef __arm__
-        asm("mov r0, #42");
-    #elif defined(__x86_64__)
-        asm("mov $42, %eax");
-    #endif
-    
-    return 0;
-}
-        """,
-        
-        "neutral_example.c": """
-#include <stdio.h>
-#include <stdlib.h>
-
-// 架构无关的纯C代码
-int factorial(int n) {
-    if (n <= 1) return 1;
-    return n * factorial(n - 1);
-}
-
-int main() {
-    int number = 5;
-    int result = factorial(number);
-    
-    printf("Factorial of %d is %d\\n", number, result);
-    printf("This code is architecture-independent\\n");
-    
-    return 0;
-}
-        """
-    }
-    
-    return test_cases
+    return TEST_CASES
 
 def run_single_analysis(agent, code: str, filename: str):
     """运行单文件分析"""
@@ -159,7 +49,7 @@ def display_analysis_result(result: Dict[str, Any]):
     # 显示摘要信息
     summary = result.get('summary', {})
     print(f"\n📊 分析摘要:")
-    print(f"   文件路径: {summary.get('file_path', 'N/A')}")
+    print(f"   文件路径: {result.get('file_path', 'N/A')}")
     print(f"   总代码行数: {summary.get('total_lines_analyzed', 0)}")
     
     # 显示架构统计
@@ -170,16 +60,16 @@ def display_analysis_result(result: Dict[str, Any]):
             print(f"     {arch}: {count} 行")
     
     # 显示详细结果
-    detailed_results = result.get('detailed_results', [])
+    detailed_results = result.get('line_details', [])
     if detailed_results:
         print(f"\n🔎 详细发现 ({len(detailed_results)} 个架构相关代码块):")
         
         for i, item in enumerate(detailed_results, 1):
-            print(f"\n   {i}. 行号: {item.get('line_number', 'N/A')}")
-            print(f"      分类: {item.get('category', 'N/A')}")
-            print(f"      推理: {item.get('reasoning', 'N/A')}")
+            print(f"\n   {i}. 行号: {item.line_number}")
+            print(f"      分类: {item.category}")
+            print(f"      推理: {item.reasoning}")
             
-            evidence = item.get('evidence', [])
+            evidence = item.evidence
             if evidence:
                 print(f"      证据: {', '.join(evidence)}")
     else:
@@ -255,3 +145,33 @@ def save_results_to_json(results: Dict[str, Any], filename: str = "analysis_resu
         print(f"\n💾 分析结果已保存到: {filename}")
     except Exception as e:
         print(f"❌ 保存结果失败: {e}")
+
+# 新增用于打印项目级风险报告的函数
+def generate_project_level_report(issues: list):
+    """打印项目级的风险报告"""
+    print("\n" + "="*25 + " 项目级风险报告 " + "="*25)
+    if not issues:
+        print("✅ 未发现项目级的多架构实现缺失问题。")
+        return
+    
+    print(f"⚠️ 发现 {len(issues)} 个潜在的项目级问题：")
+    for i, issue in enumerate(issues, 1):
+        print(f"\n--- 问题 {i}: {issue['type']} ---")
+        print(f"  函数: {issue['function_name']}")
+        print(f"  已实现架构: {list(issue['implemented_in'].keys())}")
+        print(f"  缺失实现架构: {issue['missing_for_arch']}")
+        print(f"  调用位置 (部分): {issue['called_from'][:3]}")
+        print(f"  修复建议: {issue['suggestion']}")
+    print("="*68)
+
+# 新增用于保存最终完整项目报告的函数
+def save_project_report(report_data: dict, output_path: str):
+    """将包含所有分析结果的完整项目报告保存为JSON文件"""
+    print(f"\n💾 正在保存完整项目报告到: {output_path}")
+    try:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(report_data, f, indent=2, ensure_ascii=False,cls=AgentStateEncoder)
+        print("✅ 完整报告保存成功。")
+    except Exception as e:
+        print(f"❌ 保存完整报告失败: {e}")

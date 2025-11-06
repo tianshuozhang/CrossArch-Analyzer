@@ -75,7 +75,7 @@ class DependencyGraphGenerator:
 
         # --- 1. 添加节点 ---
         # 为每个文件创建一个大节点
-        all_files = {report['file_path'] for report in self.correlator.all_reports}
+        all_files = {file_path for file_path,_ in self.correlator.all_reports.items()}
         for file_path in all_files:
             self._add_node(name=file_path, category_name='File', symbol_size=30)
             

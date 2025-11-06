@@ -21,6 +21,7 @@ class EnhancedOrchestratorAgent:
     
     def __init__(self, llm_config: Dict[str, Any], agent_id: str = "orchestrator_001"):
         self.agent_id = agent_id
+        
         self.llm = ChatOpenAI(**llm_config)
         
         # 初始化核心工具
@@ -35,7 +36,7 @@ class EnhancedOrchestratorAgent:
         self.memory_manager = MemoryManager()
         self.communication_bus = CommunicationBus()
 
-        self.load_agent_state()
+        
             
         
         # 注册到通信总线
@@ -50,7 +51,7 @@ class EnhancedOrchestratorAgent:
             "performance_metrics": {},
             "created_time": datetime.now().isoformat()
         }
-        
+        self.load_agent_state()
         # 系统提示词（支持上下文注入）
         self.system_prompt_template = """你是一个专业的代码架构分析引擎。你的任务是将C/C++代码按指令集架构分类。
 
@@ -234,7 +235,7 @@ class EnhancedOrchestratorAgent:
         associated_functions = []
         # 创建一个行号到架构的快速查找字典，提高效率
         # 注意：这里的 'category' 字段名需要与你的 rule_engine 输出保持一致
-        line_to_arch_map = {item['line']: item.get('category', 'Generic') for item in classifications}
+        line_to_arch_map = {item.line_number: item.category for item in classifications}
 
         for func in raw_funcs:
             line_num = func['line_number']
@@ -248,20 +249,20 @@ class EnhancedOrchestratorAgent:
             })
         return associated_functions
 
-    def _generate_enhanced_report(self, classifications: List[Dict], file_path: str, session_id: str, 
-                                  system_message: str, defined_functions: List[Dict], 
-                                  called_functions: List[Dict]) -> Dict[str, Any]:
-        """
-        [辅助方法] 创建最终的JSON报告结构，已扩展以包含函数信息。
-        """
-        return {
-            "file_path": file_path,
-            "session_id": session_id,
-            "system_context": system_message, # 保留上下文信息，便于调试
-            "line_details": classifications,
-            "defined_functions": defined_functions, 
-            "called_functions": called_functions    
-        }
+    # def _generate_enhanced_report(self, classifications: List[Dict], file_path: str, session_id: str, 
+    #                               system_message: str, defined_functions: List[Dict], 
+    #                               called_functions: List[Dict]) -> Dict[str, Any]:
+    #     """
+    #     [辅助方法] 创建最终的JSON报告结构，已扩展以包含函数信息。
+    #     """
+    #     return {
+    #         "file_path": file_path,
+    #         "session_id": session_id,
+    #         "system_context": system_message, # 保留上下文信息，便于调试
+    #         "line_details": classifications,
+    #         "defined_functions": defined_functions, 
+    #         "called_functions": called_functions    
+    #     }
 
     # def _build_context_window(self, code: str, file_path: str) -> str:
     #     # 示例实现
@@ -406,8 +407,9 @@ class EnhancedOrchestratorAgent:
             "last_analysis": self.current_state["last_analysis_result"],
             "performance_metrics": self.current_state["performance_metrics"]
         }
-    def _generate_enhanced_report(self, classifications: List, file_path: str, 
-                                session_id: str, system_message: str) -> Dict[str, Any]:
+    def _generate_enhanced_report(self, classifications: List[Dict], file_path: str, session_id: str, 
+                                  system_message: str, defined_functions: List[Dict], 
+                                  called_functions: List[Dict]) -> Dict[str, Any]:
         """
         生成增强的分析报告，整合LLM的推理能力
         """
@@ -432,17 +434,19 @@ class EnhancedOrchestratorAgent:
     """
         
         try:
+            chat_prompt = ChatPromptTemplate.from_messages(
+            [SystemMessage(content=system_message), HumanMessage(content=llm_prompt)]
+            )
+            chain = chat_prompt|self.llm
             # 调用LLM进行深度分析
-            llm_response = self.llm.invoke([
-                SystemMessage(content=system_message),
-                HumanMessage(content=llm_prompt)
-            ])
-            
+            llm_response = chain.invoke({})
             # 解析LLM响应
             llm_analysis = self._parse_llm_response(llm_response.content)
             
         except Exception as e:
             # LLM调用失败时的降级方案
+            print(f"LLM调用失败，使用基础分析结果: {str(e)}")
+            
             llm_analysis = {
                 "summary": "LLM分析暂不可用，使用基础分析结果",
                 "fallback_mode": True
@@ -453,9 +457,11 @@ class EnhancedOrchestratorAgent:
             "session_id": session_id,
             "file_path": file_path,
             "analysis_timestamp": datetime.now().isoformat(),
-            "classifications": classifications,
             "llm_enhanced_analysis": llm_analysis,
-            "summary": self._generate_summary_statistics(classifications)
+            "summary": self._generate_summary_statistics(classifications),
+            "defined_functions": defined_functions, 
+            "called_functions": called_functions,
+            "line_details": classifications
         }
         
         return report
