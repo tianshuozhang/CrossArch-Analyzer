@@ -4,7 +4,9 @@ from datetime import datetime
 from dataclasses import dataclass
 from sentence_transformers import SentenceTransformer
 import faiss
-import os
+import pickle
+import json
+from pathlib import Path
 
 @dataclass
 class MemoryItem:
@@ -18,7 +20,7 @@ class MemoryItem:
 class MemoryManager:
     """记忆管理器：基于RAG的记忆检索和总结"""
     
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2", storage_path: str = "./LLM/memory/"):
         # 初始化文本嵌入模型
 
         self.embedding_model = SentenceTransformer(model_name)
@@ -30,6 +32,9 @@ class MemoryManager:
         # 记忆存储
         self.memories: List[MemoryItem] = []
         self.memory_vectors = np.empty((0, self.vector_dim))
+
+        self.storage_path = Path(storage_path)
+        self.storage_path.mkdir(exist_ok=True)  # 确保目录存在
         
     def add_memory(self, content: str, memory_type: str = "conversation", 
               importance: float = 0.5, metadata: Optional[Dict] = None):
@@ -161,3 +166,228 @@ class MemoryManager:
             faiss.normalize_L2(normalized_vectors)
             self.index.add(normalized_vectors)
             print(f"索引重建完成，包含 {self.index.ntotal} 个向量")
+
+    def save_memories(self, agent_id: str, format_type: str = "json") -> str:
+        """
+        保存记忆到本地文件
+        
+        Args:
+            filename: 文件名（不包含扩展名）
+            format_type: 保存格式 ("pickle" 或 "json")
+            
+        Returns:
+            保存的文件路径
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{agent_id}_{timestamp}.{format_type}"
+        filepath = self.storage_path / filename
+
+        try:
+            if format_type == "pickle":
+                # 使用pickle保存（推荐，支持完整对象序列化）
+                self._save_with_pickle(filepath)
+            elif format_type == "json":
+                # 使用JSON保存（可读性好，但需要特殊处理）
+                self._save_with_json(filepath)
+            # 更新最新状态引用
+            latest_path = self.storage_path / f"{agent_id}_latest.{format_type}"
+            if latest_path.exists():
+                latest_path.unlink()
+            latest_path.symlink_to(filename)
+            
+                
+        except Exception as e:
+            print(f"保存记忆失败: {e}")
+            raise
+    
+    def _save_with_pickle(self, filepath: Path) -> str:
+        """使用pickle格式保存记忆"""
+        pickle_path = filepath.with_suffix('.pkl')
+        
+        # 准备保存的数据结构
+        save_data = {
+            'memories': self.memories,
+            'memory_vectors': self.memory_vectors,
+            'metadata': {
+                'saved_at': datetime.now().isoformat(),
+                'memory_count': len(self.memories),
+                'vector_dim': self.vector_dim,
+                'model_name': self.embedding_model[0].device if hasattr(self.embedding_model[0], 'device') else 'unknown'
+            }
+        }
+        
+        with open(pickle_path, 'wb') as f:
+            pickle.dump(save_data, f)
+        
+        print(f"✅ 记忆已保存到: {pickle_path} (共 {len(self.memories)} 条记忆)")
+        return str(pickle_path)
+    
+    def _save_with_json(self, filepath: Path) -> str:
+        """使用JSON格式保存记忆（需要特殊处理不可序列化对象）"""
+        json_path = filepath.with_suffix('.json')
+        
+        # 将记忆转换为可JSON序列化的格式
+        serializable_memories = []
+        for memory in self.memories:
+            serializable_memories.append({
+                'content': memory.content,
+                'timestamp': memory.timestamp.isoformat(),
+                'importance': memory.importance,
+                'memory_type': memory.memory_type,
+                'metadata': memory.metadata
+            })
+        
+        save_data = {
+            'memories': serializable_memories,
+            'memory_vectors': self.memory_vectors.tolist(),  # 转换为列表
+            'metadata': {
+                'saved_at': datetime.now().isoformat(),
+                'memory_count': len(self.memories),
+                'vector_dim': self.vector_dim,
+                'format': 'json_serialized'
+            }
+        }
+        
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(save_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ 记忆已保存到: {json_path} (JSON格式)")
+        return str(json_path)
+    
+    def load_memories(self, agent_id: str, version: str, filename:str =None, format_type: str = "auto") -> bool:
+        """
+        从本地文件加载记忆
+        
+        Args:
+            filepath: 文件路径
+            format_type: 文件格式 ("auto", "pickle", 或 "json")
+            
+        Returns:
+            是否加载成功
+        """
+
+        if not filename:
+            filename = f"{agent_id}_{version}.{format_type if format_type != 'auto' else 'pkl'}"
+        
+
+        path = self.storage_path / filename
+        
+        if not path.exists():
+            print(f"❌ 文件不存在: {filename}")
+            return False
+        
+        try:
+            if format_type == "auto":
+                # 根据文件扩展名自动判断格式
+                if path.suffix == '.pkl':
+                    return self._load_from_pickle(path)
+                elif path.suffix == '.json':
+                    return self._load_from_json(path)
+                else:
+                    print(f"❌ 不支持的文件格式: {path.suffix}")
+                    return False
+            elif format_type == "pickle":
+                return self._load_from_pickle(path)
+            elif format_type == "json":
+                return self._load_from_json(path)
+            else:
+                print(f"❌ 不支持的格式类型: {format_type}")
+                return False
+                
+        except Exception as e:
+            print(f"❌ 加载记忆失败: {e}")
+            return False
+    
+    def _load_from_pickle(self, filepath: Path) -> bool:
+        """从pickle文件加载记忆"""
+        with open(filepath, 'rb') as f:
+            loaded_data = pickle.load(f)
+        
+        # 恢复记忆数据
+        self.memories = loaded_data['memories']
+        self.memory_vectors = loaded_data['memory_vectors']
+        
+        # 重建FAISS索引
+        self._rebuild_index()
+        
+        metadata = loaded_data.get('metadata', {})
+        print(f"✅ 记忆加载成功: {len(self.memories)} 条记忆 (保存于: {metadata.get('saved_at', '未知时间')})")
+        return True
+    
+    def _load_from_json(self, filepath: Path) -> bool:
+        """从JSON文件加载记忆"""
+        with open(filepath, 'r', encoding='utf-8') as f:
+            loaded_data = json.load(f)
+        
+        # 将JSON数据转换回MemoryItem对象
+        self.memories = []
+        for memory_data in loaded_data['memories']:
+            memory_item = MemoryItem(
+                content=memory_data['content'],
+                timestamp=datetime.fromisoformat(memory_data['timestamp']),
+                importance=memory_data['importance'],
+                memory_type=memory_data['memory_type'],
+                metadata=memory_data['metadata']
+            )
+            self.memories.append(memory_item)
+        
+        # 恢复向量数据
+        self.memory_vectors = np.array(loaded_data['memory_vectors'], dtype='float32')
+        
+        # 重建FAISS索引
+        self._rebuild_index()
+        
+        metadata = loaded_data.get('metadata', {})
+        print(f"✅ 记忆加载成功: {len(self.memories)} 条记忆 (JSON格式)")
+        return True
+    
+    def list_saved_memories(self) -> List[Dict[str, Any]]:
+        """
+        列出所有已保存的记忆文件
+        
+        Returns:
+            记忆文件信息列表
+        """
+        memory_files = []
+        
+        # 查找.pkl和.json文件
+        for pattern in ['*.pkl', '*.json']:
+            for filepath in self.storage_path.glob(pattern):
+                stat = filepath.stat()
+                memory_files.append({
+                    'filename': filepath.name,
+                    'path': str(filepath),
+                    'size': stat.st_size,
+                    'created_time': datetime.fromtimestamp(stat.st_ctime),
+                    'format': 'pickle' if filepath.suffix == '.pkl' else 'json'
+                })
+        
+        # 按创建时间排序
+        memory_files.sort(key=lambda x: x['created_time'], reverse=True)
+        return memory_files
+    
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """
+        获取记忆统计信息
+        
+        Returns:
+            统计信息字典
+        """
+        if not self.memories:
+            return {'total_memories': 0}
+        
+        # 按类型统计
+        type_stats = {}
+        for memory in self.memories:
+            type_stats[memory.memory_type] = type_stats.get(memory.memory_type, 0) + 1
+        
+        # 重要性分布
+        importance_scores = [memory.importance for memory in self.memories]
+        
+        return {
+            'total_memories': len(self.memories),
+            'type_distribution': type_stats,
+            'avg_importance': np.mean(importance_scores) if importance_scores else 0,
+            'vector_dimensions': self.memory_vectors.shape,
+            'index_size': self.index.ntotal if hasattr(self.index, 'ntotal') else 0
+        }

@@ -6,7 +6,6 @@ from core.communication_bus import CommunicationBus
 from services.build_system_analyzer import BuildSystemAnalyzer
 from services.cross_file_correlator import CrossFileCorrelator
 from dependency_graph_generator import DependencyGraphGenerator
-# from utils import setup_environment,load_test_cases,run_batch_analysis,generate_summary_report,save_results_to_json
 from utils import setup_environment, load_test_cases, run_batch_analysis, generate_summary_report,generate_project_level_report, save_project_report
 
 def initialize_components():

@@ -34,10 +34,9 @@ class EnhancedOrchestratorAgent:
         # 初始化增强组件
         self.state_manager = StateManager()
         self.memory_manager = MemoryManager()
-        self.communication_bus = CommunicationBus()
+        # self.memory_manager = MemoryManager(model_name="./LLM/models/all-MiniLM-L6-v2") # 使用本地模型
 
-        
-            
+        self.communication_bus = CommunicationBus()            
         
         # 注册到通信总线
         self.communication_bus.register_agent(self.agent_id, self)
@@ -52,6 +51,7 @@ class EnhancedOrchestratorAgent:
             "created_time": datetime.now().isoformat()
         }
         self.load_agent_state()
+        self.load_agent_memories()
         # 系统提示词（支持上下文注入）
         self.system_prompt_template = """你是一个专业的代码架构分析引擎。你的任务是将C/C++代码按指令集架构分类。
 
@@ -214,6 +214,7 @@ class EnhancedOrchestratorAgent:
             
             # 保存状态
             self.save_agent_state()
+            self.save_agent_memories()
             
             return report
             
@@ -499,3 +500,12 @@ class EnhancedOrchestratorAgent:
             "architecture_statistics": arch_stats,
             "arch_dependency_ratio": arch_dependent_lines / total_lines if total_lines > 0 else 0
         }
+    def load_agent_memories(self, version: str = "latest", format_type: str = "json"):
+
+        """加载Agent记忆"""
+        return self.memory_manager.load_memories(agent_id=self.agent_id, format_type=format_type, version=version)
+        
+    
+    def save_agent_memories(self,format_type: str = "json"):
+        """保存Agent记忆"""
+        return self.memory_manager.save_memories(agent_id=self.agent_id, format_type=format_type)

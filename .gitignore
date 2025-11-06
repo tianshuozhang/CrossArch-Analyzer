@@ -62,3 +62,4 @@ package-lock.json
 **/state/
 **/result/
 LLM/models/
+LLM/memory/
