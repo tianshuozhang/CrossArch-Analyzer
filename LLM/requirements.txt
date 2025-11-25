@@ -1,2 +1,5 @@
 flask
 libclang
+
+tree-sitter
+tree-sitter-cpp
