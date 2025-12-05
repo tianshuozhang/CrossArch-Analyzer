@@ -1,0 +1,43 @@
+{
+    "arm":[
+        "__arm",
+        "__arm__",
+        "__ARM_32BIT_STATE",
+        "__ARM_ACLE",
+        "__ARM_ARCH",
+        "__ARM_ARCH_6KZ__",
+        "__ARM_ARCH_ISA_ARM",
+        "__ARM_ARCH_ISA_THUMB",
+        "__ARM_EABI__",
+        "__ARM_FEATURE_CLZ",
+        "__ARM_FEATURE_COPROC",
+        "__ARM_FEATURE_DSP",
+        "__ARM_FEATURE_LDREX",
+        "__ARM_FEATURE_QBIT",
+        "__ARM_FEATURE_SAT",
+        "__ARM_FEATURE_SIMD32",
+        "__ARM_FP",
+        "__ARM_FP16_ARGS",
+        "__ARM_FP16_FORMAT_IEEE",
+        "__ARM_PCS",
+        "__ARM_PCS_VFP",
+        "__ARM_SIZEOF_MINIMAL_ENUM",
+        "__ARM_SIZEOF_WCHAR_T",
+        "__ARM_VFPV2__"
+    ],
+    "riscv":[
+
+    ],
+    "x86":[
+
+    ],
+    "mips":[
+
+    ],
+    "powerPC":[
+
+    ],
+    "loongISA":[
+
+    ]
+}

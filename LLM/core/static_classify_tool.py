@@ -1,13 +1,16 @@
 from typing import List, Tuple, Set, Optional, Dict
+import json
 from enum import Enum
-from TSHelper import (
+
+import ts_helper as ts_helper
+from ts_helper import (
     TSTypes,
     SExpressionTemplate,
     findFilteredIdentInTSNode,
     findTSNodesWithSExpr,
 )
-import TSHelper
 from tree_sitter import Node as TSNode
+from code_processor import CodeProcessor
 
 
 class NodeType(Enum):
@@ -21,6 +24,8 @@ class SyntaxType(Enum):
     ASM = "asm"
     TYPE = "type"
     FUNCTION = "function"
+    MACRO = "macro"
+    ATTRIBUTE = "attribute"
     OTHER = "other"
 
 
@@ -53,6 +58,35 @@ class CodeNode:
 
 
 class StaticClassifyTool:
+
+    def _preprocess_code(
+        code: str,
+    ) -> Tuple[str, Dict[str, Dict[str, CodeNode | List[int]]]]:
+        pattern_type_args = [
+            (r"__attribute__\(\([^\)]*\)\)", SyntaxType.ATTRIBUTE),
+            (r"__?asm\{[^\}]*\}", SyntaxType.ASM),
+            (
+                r"vector +(signed char|unsigned char|signed short|unsigned short|signed int|unsigned int|float|bool char|bool short|bool int|pixel)",
+                SyntaxType.TYPE,
+            ),
+        ]
+        collected_exprs = {}
+        for pattern, syntax_type in pattern_type_args:
+            code_, expr_lines = CodeProcessor.remove_regex(code, pattern)
+            exprs = {}
+            for expr_line in expr_lines:
+                expr_name, line = expr_line
+                if expr_name in exprs:
+                    exprs[expr_name]["lines"].append(line)
+                else:
+                    exprs[expr_name] = {
+                        "node": CodeNode(
+                            expr_name, NodeType.OUTERSYMBOL, syntaxType=syntax_type
+                        ),
+                        "lines": [line],
+                    }
+            collected_exprs[syntax_type] = exprs
+        return code_, collected_exprs
 
     def _prepare(
         root_tsNode: TSNode,
@@ -97,9 +131,11 @@ class StaticClassifyTool:
                 return SyntaxType.FUNCTION
             if tsNode.type == TSTypes.STRING_CONTENT:
                 return SyntaxType.ASM
-            if tsNode.type == TSTypes.TYPE_SPECIFIER:
+            if tsNode.type == TSTypes.PRIMITIVE_TYPE:
                 return SyntaxType.TYPE
-            return SyntaxType.OTHER
+            if tsNode.parent.type == TSTypes.ATTRIBUTE:
+                return SyntaxType.ATTRIBUTE
+            return SyntaxType.MACRO
 
         for symbol_tsNode in outerSymbol_tsNodes:
             codeNode = CodeNode(
@@ -121,8 +157,8 @@ class StaticClassifyTool:
                 [tagTarget_tsNode],
                 info={
                     "lineRange": (
-                        tagTarget_tsNode.start_point.row,
-                        tagTarget_tsNode.end_point.row,
+                        tagTarget_tsNode.start_point.row + 1,
+                        tagTarget_tsNode.end_point.row + 1,
                     )
                 },
             )
@@ -282,7 +318,10 @@ class StaticClassifyTool:
                         symbol_codeNodes.remove(code_node)
                     code_node.linkTo(symbol_codeNodes)
 
-    def _linkTagTargetWithOuterSymbol(codeNode_graph: dict[str | int, CodeNode]):
+    def _linkTagTargetWithOuterSymbol(
+        codeNode_graph: Dict[str | int, CodeNode],
+        collected_exprs: Dict[SyntaxType, Dict],
+    ):
         tagTarget_outerSymbol_dict = {}
         outerSymbol_tagTarget_dict = {}
         for key, code_node in codeNode_graph.items():
@@ -291,7 +330,7 @@ class StaticClassifyTool:
             elif code_node.nodeType == NodeType.OUTERSYMBOL:
                 outerSymbol_tagTarget_dict[key] = []
 
-        def _walk(except_ts_id: int, codeNode: CodeNode, path=[]):
+        def _walk(except_ts_id: int, codeNode: CodeNode, path=[]) -> List[CodeNode]:
             if codeNode.nodeType == NodeType.OUTERSYMBOL:
                 return [codeNode]
             ret = []
@@ -310,7 +349,6 @@ class StaticClassifyTool:
             tagTarget_outerSymbol_dict[tagTarget_tsNode_id] = _walk(
                 tagTarget_tsNode_id, codeNode_graph[tagTarget_tsNode_id]
             )
-
         for outerSymbol_tsNode_name in outerSymbol_tagTarget_dict:
             for tagTarget_tsNode_id in tagTarget_outerSymbol_dict:
                 if outerSymbol_tsNode_name in [
@@ -320,19 +358,46 @@ class StaticClassifyTool:
                     outerSymbol_tagTarget_dict[outerSymbol_tsNode_name].append(
                         tagTarget_tsNode_id
                     )
+        for _, exprs in enumerate(collected_exprs):
+            for expr_name in exprs:
+                outerSymbol_tagTarget_dict[expr_name] = []
+                expr_codeNode = exprs[expr_name]["node"]
+                expr_lines = exprs[expr_name]["lines"]
+                for tagTarget_tsNode_id in tagTarget_outerSymbol_dict:
+                    tagTarget_codeNode = codeNode_graph[tagTarget_tsNode_id]
+                    r = tagTarget_codeNode.info["lineRange"]
+                    if any(
+                        r[0] <= attribute_line < r[1] for attribute_line in expr_lines
+                    ):
+                        outerSymbol_tagTarget_dict[expr_name].append(
+                            tagTarget_tsNode_id
+                        )
+                        tagTarget_outerSymbol_dict[tagTarget_tsNode_id].append(
+                            expr_codeNode
+                        )
         return tagTarget_outerSymbol_dict, outerSymbol_tagTarget_dict
 
     def _pack_analysis_result(
         tagTarget_outerSymbol_dict: Dict,
         outerSymbol_tagTarget_dict: Dict,
         codeNode_graph: Dict,
+        collected_exprs: Dict[SyntaxType, Dict],
     ) -> Dict:
         analysis_result = {
+            "symbols": [
+                (k, v.syntax.value)
+                for k, v in codeNode_graph.items()
+                if k in outerSymbol_tagTarget_dict
+            ]
+            + [
+                (expr_name, syntax_type.value)
+                for syntax_type in collected_exprs
+                for expr_name in collected_exprs[syntax_type]
+            ],
             "tagTarget_outerSymbol_dict": {
                 (
                     codeNode_graph[k].text,
                     codeNode_graph[k].info["lineRange"],
-                    codeNode_graph[k].syntax.value,
                 ): [vv.text for vv in v]
                 for k, v in tagTarget_outerSymbol_dict.items()
             },
@@ -350,39 +415,50 @@ class StaticClassifyTool:
         }
         return analysis_result
 
-    def scan_code(code: str) -> Dict:
-        root_tsNode = TSHelper.parse(code)
+    def scan_code(code: str):
+        code, collected_exprs = StaticClassifyTool._preprocess_code(code)
+        root_tsNode, error_tsNodes = ts_helper.parse(code)
+        if len(error_tsNodes) > 0:
+            error_lines = [
+                error_tsNode.start_point.row + 1 for error_tsNode in error_tsNodes
+            ]
+            return None, error_lines
         codeNode_graph, tsNodeId2CodeNode = StaticClassifyTool._prepare(root_tsNode)
         StaticClassifyTool._linkToOutsideSymbols(root_tsNode, codeNode_graph)
         StaticClassifyTool._makeTagTargetLink(codeNode_graph, tsNodeId2CodeNode)
         StaticClassifyTool._makeUserDefinedLink(codeNode_graph, tsNodeId2CodeNode)
         tagTarget_outerSymbol_dict, outerSymbol_tagTarget_dict = (
-            StaticClassifyTool._linkTagTargetWithOuterSymbol(codeNode_graph)
+            StaticClassifyTool._linkTagTargetWithOuterSymbol(
+                codeNode_graph, collected_exprs
+            )
         )
+
         analysis_result = StaticClassifyTool._pack_analysis_result(
-            tagTarget_outerSymbol_dict, outerSymbol_tagTarget_dict, codeNode_graph
+            tagTarget_outerSymbol_dict,
+            outerSymbol_tagTarget_dict,
+            codeNode_graph,
+            collected_exprs,
         )
-        return analysis_result
+        return analysis_result, None
 
 
 if __name__ == "__main__":
-    code = """
-#include <stdio.h>
-
+    code = """#include <stdio.h>
 // 多架构支持示例
 #if !defined(__arm__)
     #define ARCH_NAME "ARM"
     #define ARCH_FEATURE "NEON"
-#elif defined(__x86_64__)
-    #define ARCH_NAME "x86_64"
+#elif defined(__x86_64__) 
+    #define ARCH_NAME "x86_64" __attribute__((__riscv))
     #define ARCH_FEATURE "SSE/AVX"
-#elif defined(__riscv)
-    #define ARCH_NAME "RISC-V"
+#elif defined(__riscv) 
+    #define ARCH_NAME "RISC-V" __attribute__((test))
     #define ARCH_FEATURE "V Extension"
 #else
     #define ARCH_NAME "Unknown"
     #define ARCH_FEATURE "Generic"
 #endif
+[[no_unique_address]] T payload;
 int main() {
     int a = 10;
     printf("Architecture: %s\\n", ARCH_NAME);
@@ -391,6 +467,8 @@ int main() {
     // 条件编译的不同实现
     #ifdef __arm__
         asm("mov r0, #42");
+        _asm("mov r0, #42");
+        __asm("mov r0, #42");
     #elif defined(__x86_64__)
         asm("mov $42, %eax");
     #endif
@@ -398,4 +476,7 @@ int main() {
     return 0;
 }
     """
-    print(StaticClassifyTool.scan_code(code))
+    analysis_result, error_lines = StaticClassifyTool.scan_code(code)
+    if analysis_result:
+        with open("analysis_result.json", "w") as f:
+            json.dump(analysis_result["outerSymbol_tagTarget_dict"], f, indent=4)

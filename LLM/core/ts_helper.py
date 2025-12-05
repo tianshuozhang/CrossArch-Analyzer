@@ -1,16 +1,16 @@
 from tree_sitter import Language, Parser, Node as TSNode, Query, QueryCursor, TreeCursor
 import tree_sitter_cpp
-from typing import List
+from typing import List, Tuple, Optional
 from collections import namedtuple
 
 _lang = Language(tree_sitter_cpp.language())
 _parser = Parser(_lang)
 
 
-def parse(code: str) -> TSNode:
-    # TODO:修复ERROR节点
-    fix_offset = 0
-    return _parser.parse(code.encode()).root_node
+def parse(code: str) -> Tuple[TSNode, List[TSNode]]:
+    root_tsNode = _parser.parse(code.encode()).root_node
+    error_tsNodes = findTSNodesWithSExpr(root_tsNode, SExpressionTemplate.ERROR)
+    return root_tsNode, error_tsNodes
 
 
 userDefinedSymbol_s_expr = namedtuple(
@@ -55,6 +55,13 @@ class TSTypes:
     PREPROC_ELIFNDEF = "#elifndef"
     PREPROC_ELSE = "preproc_else"
 
+    ERROR = "ERROR"
+    MISSING = "MISSING"
+
+    PRIMITIVE_TYPE = "primitive_type"
+
+    ATTRIBUTE = "attribute"
+
     GROUP_PREPROC_COND = [
         PREPROC_IF,
         PREPROC_IFDEF,
@@ -91,6 +98,8 @@ class SExpressionTemplate:
         else:
             subStr = f"({child})"
         return f"({ts_type} {field}: {subStr} @0)"
+
+    ERROR = " ".join([wrapper(TSTypes.ERROR), wrapper(TSTypes.MISSING)])
 
     COND_MACRO = " ".join(
         [
@@ -248,7 +257,7 @@ def _findDefineIdentInTSNode(defineArg_tsNode: TSNode) -> List[TSNode]:
     foundIdent_tsNodes = []
     for defineArg_tsNode in defineArg_tsNodes:
         subCode = defineArg_tsNode.child_by_field_name("value").text.decode()
-        subRootNode = parse(subCode)
+        subRootNode, _ = parse(subCode)
         defineIdent = findTSNodesWithSExpr(subRootNode, SExpressionTemplate.IDENT)
         foundIdent_tsNodes.extend(defineIdent)
     return foundIdent_tsNodes
