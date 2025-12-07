@@ -20,7 +20,8 @@ def run_single_analysis(agent, code: str, filename: str):
     print(f"📋 分析文件: {filename}")
     print(f"{'='*60}")
     print("🔍 正在分析代码架构依赖...")
-    result = agent.analyze_code(code, filename)
+    msg = f"请分析以下C/C++代码文件 '{filename}' 的架构依赖情况，并提供详细的分类报告。"
+    result = agent.analyze_code(code, msg,filename)
     print("✅ 分析完成")
     # 显示分析结果
     display_analysis_result(result)
@@ -65,13 +66,9 @@ def display_analysis_result(result: Dict[str, Any]):
         print(f"\n🔎 详细发现 ({len(detailed_results)} 个架构相关代码块):")
         
         for i, item in enumerate(detailed_results, 1):
-            print(f"\n   {i}. 行号: {item.line_number}")
-            print(f"      分类: {item.category}")
-            print(f"      推理: {item.reasoning}")
-            
-            evidence = item.evidence
-            if evidence:
-                print(f"      证据: {', '.join(evidence)}")
+            print(f"\n   {i}. 行号: {item[1][0]}")
+            print(f"      分类: {item[2][0]}")
+            print(f"      代码片段: {item[0].strip()[:50]}{'...' if len(item[0].strip())>50 else ''}")
     else:
         print("\n💡 未发现架构相关代码 - 此文件可能是架构无关的")
 

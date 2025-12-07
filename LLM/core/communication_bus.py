@@ -76,6 +76,7 @@ class CommunicationBus:
                         handler(message)
                     else:
                         # 默认消息处理
+                        print(f"🚦 默认处理消息: {message}")
                         self._default_message_handler(message)
                         
                     queue.task_done()

@@ -22,7 +22,7 @@ class ArchitectureSpecialistAgent:
             
             if task_type == "architecture_analysis":
                 result = self._perform_deep_analysis(message.content["task_data"])
-                
+                print(f"🛠️ {self.specialization}专家Agent完成深度分析任务")
                 # 发送响应
                 response = AgentMessage(
                     message_id=str(uuid.uuid4()),

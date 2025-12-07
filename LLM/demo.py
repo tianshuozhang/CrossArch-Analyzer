@@ -35,6 +35,7 @@ def initialize_components():
 
         # 启动通信总线
         communication_bus.start()
+        # orchestrator.collaborate_with_specialist(task_type="architecture_analysis",task_data={})
 
         print("✅ 组件初始化成功")
         return orchestrator
@@ -119,6 +120,7 @@ def main():
     # 保存状态
     orchestrator.save_agent_state()
 
+    
 
 if __name__ == "__main__":
 

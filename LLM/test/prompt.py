@@ -45,6 +45,6 @@ chain = chat_prompt | llm | output_parser  # 使用 | 连接
 # print(response.content)
 
 # 流式调用
-for s in chain.stream({"language": "英语", "text": "你好，世界！"}):
+for s in chain.stream({}):
     print(s.content, end='', flush=True)
 

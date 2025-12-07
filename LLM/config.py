@@ -140,3 +140,45 @@ int main() {
 }
         """
     }
+
+test_all_case = (
+    "test.cpp",
+    """
+    #include <iostream>
+// 引入 X86 内在函数头文件
+#include <immintrin.h> 
+
+// 1. Attribute (属性) - 预期标记为 RISC-V
+// 最简单的函数声明附带属性
+__attribute__((__riscv__)) 
+void riscv_init() {
+    // 简单的赋值语句，作为 TagTarget
+    int status = 0; 
+}
+
+// 2. Intrinsic (内在函数) - 预期标记为 x86
+void run_x86_intrinsic() {
+    // 使用 x86 SSE/AVX 内在函数
+    // 符号：_mm_add_epi8 (应被 SymbolTagger 识别)
+    __m128i a, b, result; 
+    result = _mm_add_epi8(a, b); 
+}
+
+// 3. ASM (汇编代码) - 预期标记为 ARM (使用 mov r0, #1)
+void run_arm_asm() {
+    // 最简单的 GNU 汇编表达式
+    asm("mov r0, #1");
+}
+
+int main() {
+    riscv_init();
+    run_x86_intrinsic();
+    run_arm_asm();
+    
+    // 架构无关的函数调用
+    std::cout << "Test completed successfully." << std::endl;
+    
+    return 0;
+}
+"""
+)

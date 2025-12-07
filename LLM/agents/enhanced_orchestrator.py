@@ -4,17 +4,15 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from typing import Dict, Any, List, Optional
 import json
 from datetime import datetime
-
+import re
 from core.function_parser_tool import FunctionParserTool
-from core.preprocessor_tool import PreprocessorTool
-from core.asm_query_tool import AsmQueryTool
-from core.intrinsics_tool import IntrinsicsTool
-from core.rule_engine import RuleEngine
+
+
 from core.state_manager import StateManager
 from core.memory_manager import MemoryManager
 from core.communication_bus import CommunicationBus, AgentMessage, MessageType
-from config import ARCH_MACROS, INTRINSICS_MAPPING
 import uuid
+from core.Static_CodeAnalyzer import Static_CodeAnalyzer
 
 class EnhancedOrchestratorAgent:
     """增强的主控智能体：支持状态管理、记忆管理和多Agent协作"""
@@ -25,16 +23,15 @@ class EnhancedOrchestratorAgent:
         self.llm = ChatOpenAI(**llm_config)
         
         # 初始化核心工具
-        self.preprocessor_tool = PreprocessorTool(ARCH_MACROS)
-        self.asm_tool = AsmQueryTool()
-        self.intrinsics_tool = IntrinsicsTool(INTRINSICS_MAPPING)
-        self.rule_engine = RuleEngine()
+        
+        self.static_classifier = Static_CodeAnalyzer()
+
         self.function_parser = FunctionParserTool()
         
         # 初始化增强组件
         self.state_manager = StateManager()
-        self.memory_manager = MemoryManager()
-        # self.memory_manager = MemoryManager(model_name="./LLM/models/all-MiniLM-L6-v2") # 使用本地模型
+        # self.memory_manager = MemoryManager()
+        self.memory_manager = MemoryManager(model_name="./LLM/models/all-MiniLM-L6-v2") # 使用本地模型
 
         self.communication_bus = CommunicationBus()            
         
@@ -47,6 +44,7 @@ class EnhancedOrchestratorAgent:
             "current_session": None,
             "conversation_history": [],
             "last_analysis_result": None,
+            "last_analysis_result_nocode": None,
             "performance_metrics": {},
             "created_time": datetime.now().isoformat()
         }
@@ -54,21 +52,26 @@ class EnhancedOrchestratorAgent:
         self.load_agent_memories()
         # 系统提示词（支持上下文注入）
         self.system_prompt_template = """你是一个专业的代码架构分析引擎。你的任务是将C/C++代码按指令集架构分类。
+        报告格式取决于用户请求。请根据用户请求的复杂程度，执行以下**条件指令**：
 
-当前上下文：
-{context}
+        **【模式 A：简要总结模式】**
+        如果用户请求内容（如“总结一下”、“有哪些架构”、“简单说一下”）表明他们只需要**快速摘要或要点**：
+        1.  你只需使用**自然语言文本**，简明扼要地总结主要发现。
+        2.  **不需要**返回 JSON 格式的详细分析结果。
 
-对话历史摘要：
-{memory_summary}
+        **【模式 B：完整报告模式】**
+        如果用户请求内容（如“完整的报告”、“详细分析”、“结构化输出”）表明他们需要**完整的架构依赖报告**：
+        1.  首先，使用**自然语言文本**提供一个清晰、结构化的报告概览或表述。
+        2.  **随后**，**使用分隔符 `---JSON_DATA---` 进行严格分隔**。
+        3.  在分隔符之后，必须附带一个**完整的 JSON 格式数据块**，并使用 **Markdown 代码块标记 ` ```json` 和 ` ``` `** 进行封装。
+            JSON 结构必须包括：
+            - "architecture_summary": 架构依赖总结
+            - "line_details": 每行代码的架构分类详情
+            - "specific_patterns": 发现的架构特定代码模式
+            - "compatibility_suggestions": 跨平台兼容性建议
+            - "refactoring_suggestions": 重构建议（如需要）
 
-你必须严格按照以下步骤执行：
-1. 首先调用预处理宏扫描器分析代码中的条件编译指令
-2. 然后调用内联汇编提取器识别架构相关的汇编代码  
-3. 接着调用内置函数识别器检测架构特定的内置函数
-4. 最后基于规则引擎综合分析所有证据
-
-不要尝试自己阅读原始代码来分析架构特征，必须使用提供的工具。
-你的最终输出必须是严格的JSON格式。
+        请**严格**确保分隔符 `---JSON_DATA---` **只出现一次**，并位于自然语言表述和 JSON 数据块之间。
 """
         
         # 注册消息处理器
@@ -109,7 +112,7 @@ class EnhancedOrchestratorAgent:
         
         if relevant_memories:
             context_parts.append("【相关历史分析】")
-            for i, memory in enumerate(relevant_memories[:2]):  # 最多2条最相关记忆
+            for i, memory in enumerate(relevant_memories[:3]):  # 最多2条最相关记忆
                 context_parts.append(f"{i+1}. {memory.content}")
             context_parts.append("###")
         
@@ -162,7 +165,7 @@ class EnhancedOrchestratorAgent:
         return " ".join(keywords) if keywords else "通用代码"
 
     
-    def analyze_code(self, code: str, file_path: str = "unknown.cpp", 
+    def analyze_code(self, code: str, human_msg: str ,file_path: str = "unknown.cpp", 
                     session_id: Optional[str] = None) -> Dict[str, Any]:
         """
         增强的代码分析方法：支持状态管理和记忆管理
@@ -177,40 +180,136 @@ class EnhancedOrchestratorAgent:
             # 构建上下文窗口
             context = self._build_context_window(code, file_path)
             # print("🔄 构建上下文窗口完成")
-            memory_summary = self.memory_manager.summarize_memories(max_tokens=300)
+            memory_summary = self.memory_manager.summarize_memories(max_tokens=3000)
             
-            # 构建系统提示词
-            system_message = self.system_prompt_template.format(
-                context=context,
-                memory_summary=memory_summary
-            )
-            # print("🔄 构建系统提示词完成")
+            
 
             # 执行分析流程
-            preprocessor_results = self.preprocessor_tool.scan_code(code, file_path)
-            asm_results = self.asm_tool.extract_inline_asm(code)
-            intrinsics_results = self.intrinsics_tool.scan_intrinsics(code)
-            # print("🔄 核心工具分析完成")
-
-            # 规则推理
-            classifications = self.rule_engine.classify_code(
-                file_path, code, preprocessor_results, asm_results, intrinsics_results
-            )
-            # print("🔄 规则引擎推理完成")
+            
+            classifications,error_lines = self.static_classifier.scan_code(code)
+            print("🔄 静态规则分析推理完成")
 
             defined_funcs_raw, called_funcs_raw = self.function_parser.parse_functions(code, file_path)  # 调用函数解析工具
-            defined_functions = self._associate_functions_with_arch(defined_funcs_raw, classifications)  # 关联架构
+            defined_functions = self._associate_functions_with_arch(defined_funcs_raw, classifications["taggedTargets"])  # 关联架构
 
             # 生成报告
             report = self._generate_enhanced_report(
-                classifications, file_path, session_id, system_message,
-                defined_functions=defined_functions,  
-                called_functions=called_funcs_raw     
+                human_msg,
+                classifications, file_path, session_id,
+                defined_functions,  
+                called_funcs_raw,
+                context, memory_summary     
             )
 
             # print("🔄 增强报告生成完成")
             # 更新状态和记忆
-            self._update_after_analysis(report, code, file_path, session_id)
+            self._update_after_analysis("last_analysis_result",report, file_path, session_id)
+            
+            # 保存状态
+            self.save_agent_state()
+            self.save_agent_memories()
+            
+            return report
+            
+        except Exception as e:
+            # 记录错误到记忆
+            error_memory = f"分析错误: {file_path} - {str(e)}"
+            self.memory_manager.add_memory(
+                error_memory, 
+                memory_type="error",
+                importance=0.8,
+                metadata={"file_path": file_path, "error": str(e)}
+            )
+            raise e
+    def analyze(self, human_msg: str ,file_path: str = "unknown.cpp", 
+                    session_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        增强的代码分析方法：支持状态管理和记忆管理
+        """
+        # 创建或恢复会话
+        if not session_id:
+            session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        
+        self.current_state["current_session"] = session_id
+        
+        try:
+            # 构建上下文窗口
+            context = self._build_context_window("", file_path)
+            # print("🔄 构建上下文窗口完成")
+            memory_summary = self.memory_manager.summarize_memories(max_tokens=3000)            
+
+            report = self.current_state["last_analysis_result"]
+            llm_prompt = f"""
+请根据以下提供的【会话历史总结】和【本次分析结果】，生成最终报告。
+
+--- 【会话历史总结 (Agent Memory)】 ---
+{memory_summary}
+---
+
+--- 【本次分析上下文及数据】 ---
+分析上下文:{context}
+文件路径: {file_path}
+会话ID: {session_id}
+分析时间: {datetime.now().isoformat()}
+
+上次分析报告：
+{report}
+---
+
+--- 【本次任务指令】 ---
+用户请求原文: "{human_msg}"，请根据上次分析报告和用户的请求，尤其注意用户请求中的细节和重点，生成最终的分析报告。
+
+请根据用户请求的复杂程度，执行以下**条件指令**：
+
+**【模式 A：简要总结模式】**
+如果用户请求内容（如“总结一下”、“有哪些架构”、“简单说一下”）表明他们只需要**快速摘要或要点**：
+1.  你只需使用**自然语言文本**，简明扼要地总结主要发现。
+2.  **不需要**返回 JSON 格式的详细分析结果。
+
+**【模式 B：完整报告模式】**
+如果用户请求内容（如“完整的报告”、“详细分析”、“结构化输出”）表明他们需要**完整的架构依赖报告**：
+1.  首先，使用**自然语言文本**提供一个清晰、结构化的报告概览或表述。
+2.  **随后**，**使用分隔符 `---JSON_DATA---` 进行严格分隔**。
+3.  在分隔符之后，必须附带一个**完整的 JSON 格式数据块**，并使用 **Markdown 代码块标记 ` ```json` 和 ` ``` `** 进行封装。
+    JSON 结构必须包括：
+    - "architecture_summary": 架构依赖总结
+    - "line_details": 每行代码的架构分类详情
+    - "specific_patterns": 发现的架构特定代码模式
+    - "compatibility_suggestions": 跨平台兼容性建议
+    - "refactoring_suggestions": 重构建议（如需要）
+
+请**严格**确保分隔符 `---JSON_DATA---` **只出现一次**，并位于自然语言表述和 JSON 数据块之间。
+"""
+
+            try:
+                chat_prompt = ChatPromptTemplate.from_messages(
+                [SystemMessage(content=self.system_prompt_template), HumanMessage(content=llm_prompt)]
+                )
+                chain = chat_prompt|self.llm
+                # 调用LLM进行深度分析
+                llm_response = chain.invoke({})
+                # 解析LLM响应
+                llm_analysis = self._parse_llm_response(llm_response.content)
+                
+            except Exception as e:
+                # LLM调用失败时的降级方案
+                print(f"LLM调用失败，使用基础分析结果: {str(e)}")
+                
+                llm_analysis = {
+                    "summary": "LLM分析暂不可用，使用基础分析结果",
+                    "fallback_mode": True
+                }
+            
+            # 生成基础报告结构
+            report = {
+                "session_id": session_id,
+                "file_path": file_path,
+                "analysis_timestamp": datetime.now().isoformat(),
+                "llm_enhanced_analysis": llm_analysis,
+            }
+            # 更新状态和记忆
+            self._update_after_analysis("last_analysis_result_nocode",report, file_path, session_id)
             
             # 保存状态
             self.save_agent_state()
@@ -236,7 +335,11 @@ class EnhancedOrchestratorAgent:
         associated_functions = []
         # 创建一个行号到架构的快速查找字典，提高效率
         # 注意：这里的 'category' 字段名需要与你的 rule_engine 输出保持一致
-        line_to_arch_map = {item.line_number: item.category for item in classifications}
+        line_to_arch_map = {}
+        for item in classifications:
+            for line in range(item[1][0], item[1][1] + 1):
+                line_to_arch_map[line]=item[2][0]
+        # line_to_arch_map = {item.line_number: item.category for item in classifications}
 
         for func in raw_funcs:
             line_num = func['line_number']
@@ -250,30 +353,12 @@ class EnhancedOrchestratorAgent:
             })
         return associated_functions
 
-    # def _generate_enhanced_report(self, classifications: List[Dict], file_path: str, session_id: str, 
-    #                               system_message: str, defined_functions: List[Dict], 
-    #                               called_functions: List[Dict]) -> Dict[str, Any]:
-    #     """
-    #     [辅助方法] 创建最终的JSON报告结构，已扩展以包含函数信息。
-    #     """
-    #     return {
-    #         "file_path": file_path,
-    #         "session_id": session_id,
-    #         "system_context": system_message, # 保留上下文信息，便于调试
-    #         "line_details": classifications,
-    #         "defined_functions": defined_functions, 
-    #         "called_functions": called_functions    
-    #     }
 
-    # def _build_context_window(self, code: str, file_path: str) -> str:
-    #     # 示例实现
-    #     return f"File: {file_path}\n\n```c++\n{code[:1000]}...\n```"
-
-    def _update_after_analysis(self, report: Dict[str, Any], code: str, 
+    def _update_after_analysis(self,last_result:str,report: Dict[str, Any],
                               file_path: str, session_id: str):
         """分析后更新状态和记忆"""
         # 更新当前状态
-        self.current_state["last_analysis_result"] = report
+        self.current_state[last_result] = report
         self.current_state["conversation_history"].append({
             "session_id": session_id,
             "timestamp": datetime.now().isoformat(),
@@ -282,20 +367,21 @@ class EnhancedOrchestratorAgent:
         })
         
         # 添加分析结果到记忆
-        summary = f"分析了 {file_path}: {report['summary']['architecture_statistics']}"
-        self.memory_manager.add_memory(
-            summary,
-            memory_type="analysis_result",
-            importance=0.7,
-            metadata={
-                "file_path": file_path,
-                "session_id": session_id,
-                "arch_stats": report["summary"]["architecture_statistics"]
-            }
-        )
-        
-        # 检测并记录模式
-        self._detect_and_record_patterns(report, file_path)
+        if "summary" in report:
+            summary = f"分析了 {file_path}: {report['summary']['architecture_statistics']}"
+            self.memory_manager.add_memory(
+                summary,
+                memory_type="analysis_result",
+                importance=0.7,
+                metadata={
+                    "file_path": file_path,
+                    "session_id": session_id,
+                    "arch_stats": report["summary"]["architecture_statistics"]
+                }
+            )
+            
+            # 检测并记录模式
+            self._detect_and_record_patterns(report, file_path)
     
     
 
@@ -408,35 +494,59 @@ class EnhancedOrchestratorAgent:
             "last_analysis": self.current_state["last_analysis_result"],
             "performance_metrics": self.current_state["performance_metrics"]
         }
-    def _generate_enhanced_report(self, classifications: List[Dict], file_path: str, session_id: str, 
-                                  system_message: str, defined_functions: List[Dict], 
-                                  called_functions: List[Dict]) -> Dict[str, Any]:
+    def _generate_enhanced_report(self, human_msg:str,classifications: Dict, file_path: str, session_id: str, 
+                                  defined_functions: List[Dict], 
+                                  called_functions: List[Dict],
+                                  context : str, memory_summary : str) -> Dict[str, Any]:
         """
         生成增强的分析报告，整合LLM的推理能力
         """
         # 构建LLM提示词
         llm_prompt = f"""
-    基于以下分析结果，生成一份详细的架构依赖报告：
+请根据以下提供的【会话历史总结】和【本次分析结果】，生成最终报告。
 
-    文件路径: {file_path}
-    会话ID: {session_id}
-    分析时间: {datetime.now().isoformat()}
+--- 【会话历史总结 (Agent Memory)】 ---
+{memory_summary}
+---
 
-    分类结果概览:
-    {classifications}
+--- 【本次分析上下文及数据】 ---
+分析上下文:{context}
+文件路径: {file_path}
+会话ID: {session_id}
+分析时间: {datetime.now().isoformat()}
 
-    请提供:
-    1. 架构依赖总结
-    2. 发现的架构特定代码模式
-    3. 跨平台兼容性建议
-    4. 重构建议（如需要）
+分类结果概览:
+{classifications}
+---
 
-    请以JSON格式返回分析结果。
-    """
+--- 【本次任务指令】 ---
+用户请求原文: "{human_msg}"
+
+请根据用户请求的复杂程度，执行以下**条件指令**：
+
+**【模式 A：简要总结模式】**
+如果用户请求内容（如“总结一下”、“有哪些架构”、“简单说一下”）表明他们只需要**快速摘要或要点**：
+1.  你只需使用**自然语言文本**，简明扼要地总结主要发现。
+2.  **不需要**返回 JSON 格式的详细分析结果。
+
+**【模式 B：完整报告模式】**
+如果用户请求内容（如“完整的报告”、“详细分析”、“结构化输出”）表明他们需要**完整的架构依赖报告**：
+1.  首先，使用**自然语言文本**提供一个清晰、结构化的报告概览或表述。
+2.  **随后**，**使用分隔符 `---JSON_DATA---` 进行严格分隔**。
+3.  在分隔符之后，必须附带一个**完整的 JSON 格式数据块**，并使用 **Markdown 代码块标记 ` ```json` 和 ` ``` `** 进行封装。
+    JSON 结构必须包括：
+    - "architecture_summary": 架构依赖总结
+    - "line_details": 每行代码的架构分类详情
+    - "specific_patterns": 发现的架构特定代码模式
+    - "compatibility_suggestions": 跨平台兼容性建议
+    - "refactoring_suggestions": 重构建议（如需要）
+
+请**严格**确保分隔符 `---JSON_DATA---` **只出现一次**，并位于自然语言表述和 JSON 数据块之间。
+"""
         
         try:
             chat_prompt = ChatPromptTemplate.from_messages(
-            [SystemMessage(content=system_message), HumanMessage(content=llm_prompt)]
+            [SystemMessage(content=self.system_prompt_template), HumanMessage(content=llm_prompt)]
             )
             chain = chat_prompt|self.llm
             # 调用LLM进行深度分析
@@ -459,34 +569,75 @@ class EnhancedOrchestratorAgent:
             "file_path": file_path,
             "analysis_timestamp": datetime.now().isoformat(),
             "llm_enhanced_analysis": llm_analysis,
-            "summary": self._generate_summary_statistics(classifications),
+            "summary": self._generate_summary_statistics(classifications["taggedTargets"]),
             "defined_functions": defined_functions, 
             "called_functions": called_functions,
-            "line_details": classifications
+            "line_details": classifications["taggedTargets"]
         }
         
         return report
 
     def _parse_llm_response(self, llm_output: str) -> Dict[str, Any]:
-        """解析LLM的输出为结构化数据"""
-        try:
-            # 尝试解析JSON格式
-            if "{" in llm_output and "}" in llm_output:
-                start = llm_output.index("{")
-                end = llm_output.rindex("}") + 1
-                json_str = llm_output[start:end]
-                return json.loads(json_str)
-        except:
-            pass
+        """
+        解析LLM的输出，使用分隔符 '---JSON_DATA---' 分离自然语言报告和JSON数据。
+        同时，通过查找最外层的大括号，容忍JSON块前后的额外文本或分隔符。
+        """
         
-        # 降级处理：返回原始文本
-        return {"raw_analysis": llm_output}
+        DELIMITER = "---JSON_DATA---"
+        json_data: Optional[Dict[str, Any]] = None
+        natural_language_report: str = llm_output.strip()
+        
+        if DELIMITER in llm_output:
+            # 1. 使用分隔符分割，获取自然语言报告和 JSON 候选区
+            parts = llm_output.split(DELIMITER, 1)
+            natural_language_report = parts[0].strip()
+            json_candidate = parts[1].strip()
 
+            # 2. 从 JSON 候选区中，找到最外层的 JSON 块
+            # (先清理 Markdown 标记，简化查找)
+            
+            # 使用正则表达式清理 JSON 块周围的 Markdown 标记
+            # 匹配 ```json ... ``` 或 ``` ... ``` 标记
+            markdown_match = re.search(r"```json(.*?)```", json_candidate, re.DOTALL)
+            if markdown_match:
+                clean_json_str = markdown_match.group(1).strip()
+            else:
+                # 如果没有 Markdown 标记，则尝试找到最外层的 { ... }
+                start_brace = json_candidate.find("{")
+                end_brace = json_candidate.rfind("}")
+                
+                if start_brace != -1 and end_brace != -1 and start_brace < end_brace:
+                    # 提取第一个 { 到最后一个 } 之间的内容，这会忽略末尾的额外分隔符
+                    clean_json_str = json_candidate[start_brace : end_brace + 1].strip()
+                else:
+                    clean_json_str = "" # 未找到有效的JSON结构
+
+            # 3. 尝试解析提取到的 JSON 字符串
+            if clean_json_str:
+                try:
+                    json_data = json.loads(clean_json_str)
+                    # 成功解析，json_data 已被赋值
+
+                except json.JSONDecodeError as e:
+                    # 4. JSON 解析失败，视为完整报告模式失败，全部内容归为自然语言
+                    print(f"⚠️ Warning: JSON decode failed after delimiter. Error: {e}")
+                    natural_language_report = llm_output.strip() # 恢复为原始输出
+                    json_data = None # 确保没有返回部分失败的数据
+            else:
+                # 如果没有找到 {..}，也视为失败，归为自然语言
+                natural_language_report = llm_output.strip()
+                json_data = None
+                
+        # 5. 返回结果
+        return {
+            "natural_language_report": natural_language_report,
+            "json_data": json_data,
+        }
     def _generate_summary_statistics(self, classifications: List) -> Dict[str, Any]:
         """生成统计分析摘要"""
         arch_stats = {}
         for classification in classifications:
-            arch = classification.category
+            arch = classification[2][0]  # 假设分类结果的结构为 (tagTarget, lineRange, [archs])
             arch_stats[arch] = arch_stats.get(arch, 0) + 1
         
         total_lines = len(classifications)
@@ -509,3 +660,5 @@ class EnhancedOrchestratorAgent:
     def save_agent_memories(self,format_type: str = "json"):
         """保存Agent记忆"""
         return self.memory_manager.save_memories(agent_id=self.agent_id, format_type=format_type)
+    
+    

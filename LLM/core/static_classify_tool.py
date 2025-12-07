@@ -2,15 +2,15 @@ from typing import List, Tuple, Set, Optional, Dict
 import json
 from enum import Enum
 
-import ts_helper as ts_helper
-from ts_helper import (
+import core.ts_helper as ts_helper
+from core.ts_helper import (
     TSTypes,
     SExpressionTemplate,
     findFilteredIdentInTSNode,
     findTSNodesWithSExpr,
 )
 from tree_sitter import Node as TSNode
-from code_processor import CodeProcessor
+from core.code_processor import CodeProcessor
 
 
 class NodeType(Enum):
@@ -358,7 +358,7 @@ class StaticClassifyTool:
                     outerSymbol_tagTarget_dict[outerSymbol_tsNode_name].append(
                         tagTarget_tsNode_id
                     )
-        for _, exprs in enumerate(collected_exprs):
+        for _, exprs in collected_exprs.items():
             for expr_name in exprs:
                 outerSymbol_tagTarget_dict[expr_name] = []
                 expr_codeNode = exprs[expr_name]["node"]
@@ -477,6 +477,7 @@ int main() {
 }
     """
     analysis_result, error_lines = StaticClassifyTool.scan_code(code)
+    # print(analysis_result)
     if analysis_result:
         with open("analysis_result.json", "w") as f:
             json.dump(analysis_result["outerSymbol_tagTarget_dict"], f, indent=4)
