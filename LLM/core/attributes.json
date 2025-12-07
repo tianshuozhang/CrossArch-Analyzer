@@ -1,0 +1,40 @@
+{
+    "arm":[
+        "_arm_agnostic",
+        "_arm_in",
+        "arm_inout",
+        "arm_locally_streaming",
+        "arm_new",
+        "arm_out",
+        "arm_preserves",
+        "arm_streaming",
+        "arm_streaming_compatible",
+        "aarch64_sve_pcs",
+        "aarch64_vector_pcs",
+        "neon_polyvector_type",
+        "neon_vector_type"
+    ],
+    "riscv":[
+        "riscv::vector_cc",
+        "riscv_vector_cc",
+        "clang::riscv_vector_cc",
+        "riscv::vls_cc",
+        "riscv_vls_cc",
+        "clang::riscv_vls_cc"
+    ],
+    "x86":[
+        "amdgpu_flat_work_group_size",
+        "amdgpu_max_num_work_groups",
+        "amdgpu_num_sgpr, amdgpu_num_vgpr",
+        "amdgpu_waves_per_eu"
+    ],
+    "mips":[
+        "mips16"
+    ],
+    "powerPC":[
+
+    ],
+    "loongISA":[
+        
+    ]
+}

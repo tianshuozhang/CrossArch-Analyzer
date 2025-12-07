@@ -54,5 +54,12 @@ m4/lt~obsolete.m4
 Makefile
 
 code-annotation-master/node_modules/
-**/__pycache__/** */
 package-lock.json
+# Ignore Python bytecode files
+*.pyc
+# Ignore all __pycache__ folders
+**/__pycache__/
+**/state/
+**/result/
+LLM/models/
+LLM/memory/
