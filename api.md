@@ -33,7 +33,7 @@ code_content, requirements = prompt_parser.parse_promt(user_prompt)
 
 ## 2\. 代码静态分析接口 (`OrchestratorAgent`)
 
-该接口用于调用核心分析逻辑。您的实现似乎区分了两种分析场景：提供代码进行分析，或基于已知的代码和元数据进行分析。
+该接口用于调用核心分析逻辑。实现了两种应用场景：提供代码进行分析，或基于已知的代码和元数据进行分析。
 
 ### 接口概览
 
