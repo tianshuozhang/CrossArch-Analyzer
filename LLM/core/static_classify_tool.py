@@ -2,15 +2,16 @@ from typing import List, Tuple, Set, Optional, Dict
 import json
 from enum import Enum
 
-import core.ts_helper as ts_helper
-from core.ts_helper import (
+import ts_helper as ts_helper
+from ts_helper import (
     TSTypes,
     SExpressionTemplate,
     findFilteredIdentInTSNode,
     findTSNodesWithSExpr,
 )
 from tree_sitter import Node as TSNode
-from core.code_processor import CodeProcessor
+
+from code_processor import CodeProcessor
 
 
 class NodeType(Enum):
@@ -71,8 +72,9 @@ class StaticClassifyTool:
             ),
         ]
         collected_exprs = {}
+        code_ = code
         for pattern, syntax_type in pattern_type_args:
-            code_, expr_lines = CodeProcessor.remove_regex(code, pattern)
+            code_, expr_lines = CodeProcessor.remove_regex(code_, pattern)
             exprs = {}
             for expr_line in expr_lines:
                 expr_name, line = expr_line
@@ -158,7 +160,11 @@ class StaticClassifyTool:
                 info={
                     "lineRange": (
                         tagTarget_tsNode.start_point.row + 1,
-                        tagTarget_tsNode.end_point.row + 1,
+                        (
+                            tagTarget_tsNode.end_point.row
+                            if tagTarget_tsNode.text.decode().endswith("\n")
+                            else tagTarget_tsNode.end_point.row + 1
+                        ),
                     )
                 },
             )
@@ -367,7 +373,7 @@ class StaticClassifyTool:
                     tagTarget_codeNode = codeNode_graph[tagTarget_tsNode_id]
                     r = tagTarget_codeNode.info["lineRange"]
                     if any(
-                        r[0] <= attribute_line < r[1] for attribute_line in expr_lines
+                        r[0] <= attribute_line <= r[1] for attribute_line in expr_lines
                     ):
                         outerSymbol_tagTarget_dict[expr_name].append(
                             tagTarget_tsNode_id
@@ -403,11 +409,7 @@ class StaticClassifyTool:
             },
             "outerSymbol_tagTarget_dict": {
                 k: [
-                    (
-                        codeNode_graph[vv].text,
-                        codeNode_graph[vv].info["lineRange"],
-                        codeNode_graph[vv].syntax.value,
-                    )
+                    (codeNode_graph[vv].text, codeNode_graph[vv].info["lineRange"])
                     for vv in v
                 ]
                 for k, v in outerSymbol_tagTarget_dict.items()
@@ -446,7 +448,8 @@ if __name__ == "__main__":
     code = """#include <stdio.h>
 // 多架构支持示例
 #if !defined(__arm__)
-    #define ARCH_NAME "ARM"
+    #define ARCH_NAME \\
+        "ARM"
     #define ARCH_FEATURE "NEON"
 #elif defined(__x86_64__) 
     #define ARCH_NAME "x86_64" __attribute__((__riscv))
@@ -476,8 +479,14 @@ int main() {
     return 0;
 }
     """
+    import json
+
     analysis_result, error_lines = StaticClassifyTool.scan_code(code)
-    # print(analysis_result)
-    if analysis_result:
-        with open("analysis_result.json", "w") as f:
-            json.dump(analysis_result["outerSymbol_tagTarget_dict"], f, indent=4)
+    print(analysis_result.keys())
+    print("Symbols:")
+    [print("\t" + str(i)) for i in analysis_result["symbols"]]
+    print("symbol to tagTarget:")
+    print(json.dumps(analysis_result["outerSymbol_tagTarget_dict"], indent=4))
+    # if analysis_result:
+    #     with open("analysis_result.json", "w") as f:
+    #         json.dump(analysis_result["outerSymbol_tagTarget_dict"], f, indent=4)
