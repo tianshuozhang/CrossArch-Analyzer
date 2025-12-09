@@ -42,7 +42,7 @@
   import path from "@/api/path.js";
   import { postData } from "@/api/webpost";
   import { getData } from "@/api/webget";
-  import { message } from "ant-design-vue";
+  import message from "ant-design-vue/es/message";
   import { useRouter } from "vue-router";
   import HeaderNav from "@/components/HeaderNav.vue";
   export default defineComponent({
