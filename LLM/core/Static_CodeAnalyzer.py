@@ -1,11 +1,17 @@
 from typing import Dict, List, Tuple, Any, Optional
 import json
-
 # 导入核心功能模块（假设它们位于同一目录或已在PYTHONPATH中）
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))# 获取当前文件所在目录
+LLM_dir = os.path.dirname(current_dir)# 获取LLM目录
+sys.path.append(LLM_dir)# 将LLM目录添加到sys.path中
+
+
 # 注意：在实际项目中，您可能需要确保这些模块已正确导入。
-from static_classify_tool import StaticClassifyTool
-from symbol_tagger import SymbolTagger
-from target_tagger import TargetTagger
+from core.static_classify_tool import StaticClassifyTool
+from core.symbol_tagger import SymbolTagger
+from core.target_tagger import TargetTagger
 
 
 class Static_CodeAnalyzer:

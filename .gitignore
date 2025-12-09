@@ -63,3 +63,4 @@ package-lock.json
 **/result/
 LLM/models/
 LLM/memory/
+LLM/config/**/

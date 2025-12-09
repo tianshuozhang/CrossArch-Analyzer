@@ -20,4 +20,4 @@ COPY . .
 EXPOSE 5000
 
 # 启动命令（根据实际入口调整，例如demo2.py）
-CMD ["python", "demo2.py"]
+CMD ["python", "demo.py"]

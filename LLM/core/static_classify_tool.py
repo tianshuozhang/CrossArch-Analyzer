@@ -1,9 +1,15 @@
+import os
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))# 获取当前文件所在目录
+LLM_dir = os.path.dirname(current_dir)# 获取LLM目录
+sys.path.append(LLM_dir)# 将LLM目录添加到sys.path中
+
 from typing import List, Tuple, Set, Optional, Dict
 import json
 from enum import Enum
 
-import ts_helper as ts_helper
-from ts_helper import (
+import core.ts_helper as ts_helper
+from core.ts_helper import (
     TSTypes,
     SExpressionTemplate,
     findFilteredIdentInTSNode,
@@ -11,7 +17,7 @@ from ts_helper import (
 )
 from tree_sitter import Node as TSNode
 
-from code_processor import CodeProcessor
+from core.code_processor import CodeProcessor
 
 
 class NodeType(Enum):
@@ -287,6 +293,7 @@ class StaticClassifyTool:
         codeNode_graph: dict[str | int, CodeNode],
         tsNodeId2CodeNode: dict[int, CodeNode],
     ) -> None:
+        symbol_codeNodes = []
         for code_node in codeNode_graph.values():
             if code_node.nodeType == NodeType.USERDEFINED:
                 for sentence_tsNode in code_node.define_sentence_tsNodes:
