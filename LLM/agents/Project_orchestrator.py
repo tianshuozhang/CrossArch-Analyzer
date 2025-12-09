@@ -94,6 +94,8 @@ class Project_orchestrator(EnhancedOrchestratorAgent):
         1. 计划必须严格遵循提供的 JSON Schema (ProjectPlanning) 进行输出。
         2. 必须覆盖构建配置与代码依赖的审计、跨文件风险的关联分析。
         3. 最终必须包含一个 'project_report' 步骤。
+        4. 每个任务必须包含清晰的指令和所需的输入数据摘要。
+        
         
         **任务类型说明:**
         - **build_audit:** 审计构建系统配置与实际代码依赖的一致性。
@@ -223,15 +225,18 @@ class Project_orchestrator(EnhancedOrchestratorAgent):
         你是一个顶级的项目架构师。你的任务是综合所有的分析结果和原始数据，为用户生成一份完整的项目级架构判断报告。
         
         **报告必须包含:**
-        1. **项目架构类型判断:** (例如：'单一架构-ARM'，'混合架构-ARM/RISC-V'，'可移植性高')
-        2. **核心架构风险评估:** (基于 build_audit 和 risk_correlation 结果)
-        3. **具体优化建议:** 如何提高跨平台兼容性或消除架构依赖风险。
+        1. **项目架构类型判断:** (例如：'单一架构-ARM'，'混合架构-ARM/RISC-V'，'可移植性高'),对于这个判断需要是详细的evidence以及分析过程。
+        2. **逐文件架构依赖总结:** 基于逐文件分析结果，概述各文件的架构依赖情况,对于架构依赖的代码请具体指出，对于可能存在争议的部分请具体进行分析。
+        3. **核心架构风险评估:** (基于 build_audit 和 risk_correlation 结果)
+        4. **具体优化建议:** 如何提高跨平台兼容性或消除架构依赖风险。
         """
 
         human_prompt = f"""
         **用户初始请求/关注点:** {user_msg}
         
         **原始项目级问题摘要 (Project Issues):** {json.dumps(full_report['project_level_issues'], indent=2)}
+
+        **逐文件分析的结果:** {json.dumps(full_report['single_file_analysis'], indent=2)}
         
         **LLM 分析与审计结果:**
         ---
@@ -242,7 +247,11 @@ class Project_orchestrator(EnhancedOrchestratorAgent):
         """
         
         llm_response = self.llm.invoke([SystemMessage(content=system_prompt), HumanMessage(content=human_prompt)])
-        
+        print("✅ 项目级架构报告生成完成。")
+        print("▶️ 报告内容预览:")
+        print(llm_response.content)
+
+
         # 返回结果结构，便于后续前端展示或进一步处理
         return {
             "project_details": full_report,
