@@ -1,7 +1,6 @@
 import os
 import json
 from agents.enhanced_orchestrator import EnhancedOrchestratorAgent
-from agents.specialist_agents import ArchitectureSpecialistAgent, ValidationAgent
 from core.communication_bus import CommunicationBus
 from services.build_system_analyzer import BuildSystemAnalyzer
 from services.cross_file_correlator import CrossFileCorrelator
@@ -22,20 +21,6 @@ def initialize_components():
 
         # 创建主Agent
         orchestrator = EnhancedOrchestratorAgent(llm_config, "main_orchestrator")
-
-        # 创建专业Agent
-        arm_specialist = ArchitectureSpecialistAgent("arm_specialist", "ARM")
-        validator = ValidationAgent("main_validator")
-
-        # 注册所有Agent到通信总线
-        communication_bus = CommunicationBus()
-        communication_bus.register_agent(orchestrator.agent_id, orchestrator)
-        communication_bus.register_agent(arm_specialist.agent_id, arm_specialist)  
-        communication_bus.register_agent(validator.agent_id, validator)
-
-        # 启动通信总线
-        communication_bus.start()
-        # orchestrator.collaborate_with_specialist(task_type="architecture_analysis",task_data={})
 
         print("✅ 组件初始化成功")
         return orchestrator
