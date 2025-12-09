@@ -589,6 +589,8 @@ class EnhancedOrchestratorAgent:
         1. 必须优先解决用户需求和静态分析中的 'Error Lines'。
         2. 你的计划必须严格遵循提供的 JSON Schema 进行输出。
         3. 必须包含至少一个 'report' 步骤作为收尾。
+        4. 如果静态分析已覆盖用户需求，则可以省略 'investigation' 步骤。
+        5. 如果提供的静态分析结果已经完全满足用户需求，则只需返回一个 'report' 任务。
         
         **任务类型说明:**
         - **analysis:** 对代码进行详细分析和架构标记（通常视为已完成）。

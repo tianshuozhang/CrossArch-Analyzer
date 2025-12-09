@@ -293,6 +293,7 @@ class StaticClassifyTool:
         codeNode_graph: dict[str | int, CodeNode],
         tsNodeId2CodeNode: dict[int, CodeNode],
     ) -> None:
+        symbol_codeNodes = []
         for code_node in codeNode_graph.values():
             if code_node.nodeType == NodeType.USERDEFINED:
                 for sentence_tsNode in code_node.define_sentence_tsNodes:

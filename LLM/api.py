@@ -2,7 +2,7 @@ import os
 from utils import setup_environment
 from agents.enhanced_orchestrator import EnhancedOrchestratorAgent
 from agents.PromptParser import PromptParser
-from config import test_all_case
+from LLM.config.config import test_all_case
 setup_environment()
 
 llm_config = {

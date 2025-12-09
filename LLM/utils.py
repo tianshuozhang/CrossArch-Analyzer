@@ -2,7 +2,55 @@ import os
 from typing import Dict, Any
 import json
 from core.state_manager import AgentStateEncoder
-from config import TEST_CASES
+from config.config import TEST_CASES
+
+
+def load_project_files(project_root: str) -> Dict[str, str]:
+    """
+    遍历给定项目根目录及其所有子文件夹，收集 .h, .cpp, .c 文件的内容。
+    
+    Args:
+        project_root: 项目的根目录路径。
+        
+    Returns:
+        一个字典，键是文件的绝对路径，值是文件的全部内容。
+    """
+    file_contents: Dict[str, str] = {}
+    
+    # 定义要收集的文件扩展名
+    TARGET_EXTENSIONS = ('.h', '.cpp', '.c')
+    
+    if not os.path.isdir(project_root):
+        print(f"错误：路径 '{project_root}' 不是一个有效的目录。")
+        return {}
+    
+    print(f"🚀 开始扫描项目目录: {project_root}")
+    
+    # 使用 os.walk 递归遍历目录树
+    for dirpath, _, filenames in os.walk(project_root):
+        for filename in filenames:
+            # 检查文件扩展名是否匹配
+            if filename.lower().endswith(TARGET_EXTENSIONS):
+                file_path = os.path.join(dirpath, filename)
+                
+                try:
+                    # 读取文件内容，使用 'utf-8' 编码，并处理可能的编码错误
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # 使用文件的相对路径或绝对路径作为键 (这里使用绝对路径)
+                    file_contents[file_path] = content
+                    print(f"  - 发现并加载: {file_path}")
+                    
+                except UnicodeDecodeError:
+                    print(f"⚠️ 警告: 文件 '{file_path}' 编码错误，跳过。")
+                except Exception as e:
+                    print(f"❌ 错误: 无法读取文件 '{file_path}': {e}")
+                    
+    print(f"✅ 文件加载完成。总计加载了 {len(file_contents)} 个 C/C++ 源文件。")
+    return file_contents
+
+
 def setup_environment():
     """设置环境变量和配置"""
     # 设置LLM API配置（根据你的实际API修改）
