@@ -35,7 +35,7 @@
   import { useRouter } from "vue-router";
   import path from "@/api/path.js";
   import { getData } from "@/api/webget";
-  import { message } from "ant-design-vue";
+  import message from "ant-design-vue/es/message";
   export default defineComponent({
     props: {
       current: String,

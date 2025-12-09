@@ -1,5 +1,5 @@
 <template>
-  <div class="app" :style="{gridTemplateColumns: (leftCollapsed? '0px' : '320px') + ' 1fr ' + (codeCollapsed? '0px' : '320px')}">
+  <div class="app" :style="{gridTemplateColumns: (leftCollapsed? '0px' : '320px') + ' 1fr ' + ((codeCollapsed && !chatOnly)? '0px' : '320px')}">
     <header class="topbar">
       <div class="brand">
         <div class="logo">Q</div>
@@ -47,28 +47,6 @@
     </aside>
 
     <main class="center">
-      <section class="chat">
-        <div class="section-title">自然语言需求输入</div>
-        <div class="chat-history">
-          <div class="msg user">
-            <div class="avatar">👤</div>
-            <div class="bubble">帮我分类 arm/driver.c 的 function 级别，只显示 riscv 相关函数</div>
-          </div>
-          <div class="msg system">
-            <div class="avatar">🅆</div>
-            <div class="bubble">已接收需求，正在分析 arm/driver.c 的 function 级别分类，目标架构：riscv</div>
-          </div>
-          <div class="msg" v-for="m in messages" :key="m.id" :class="m.role">
-            <div class="avatar">{{ m.role==='user'?'👤':'🅆' }}</div>
-            <div class="bubble">{{ m.text }}</div>
-          </div>
-        </div>
-        <div class="chat-input">
-          <textarea v-model="inputText" class="textarea" rows="2" @keydown.enter="onEnter" placeholder="请输入分类需求（Shift+Enter 换行，Ctrl+Enter 发送）"></textarea>
-          <button class="btn primary" @click="send">发送</button>
-        </div>
-      </section>
-
       <section class="code" v-show="!codeCollapsed">
         <div class="code-toolbar">
           <div class="path">{{ selectedFilePath }}</div>
@@ -93,7 +71,7 @@
       </section>
     </main>
 
-    <aside class="right" v-show="!codeCollapsed">
+    <aside class="right" v-show="chatOnly || !codeCollapsed">
       <section class="panel">
         <div class="panel-title strong">
           <span>分类结果统计</span>
@@ -110,6 +88,27 @@
             <div class="bar-count">{{ b.count }}</div>
           </div>
           <div class="bar-note">总行数：{{ totalLines }}；有标签行：{{ taggedLines }}</div>
+        </div>
+      </section>
+      <section class="chat" style="margin-top:12px">
+        <div class="section-title">自然语言需求输入</div>
+        <div class="chat-history">
+          <div class="msg user">
+            <div class="avatar">👤</div>
+            <div class="bubble">帮我分类 arm/driver.c 的 function 级别，只显示 riscv 相关函数</div>
+          </div>
+          <div class="msg system">
+            <div class="avatar">🅆</div>
+            <div class="bubble">已接收需求，正在分析 arm/driver.c 的 function 级别分类，目标架构：riscv</div>
+          </div>
+          <div class="msg" v-for="m in messages" :key="m.id" :class="m.role">
+            <div class="avatar">{{ m.role==='user'?'👤':'🅆' }}</div>
+            <div class="bubble">{{ m.text }}</div>
+          </div>
+        </div>
+        <div class="chat-input">
+          <textarea v-model="inputText" class="textarea" rows="1" @keydown.enter="onEnter" placeholder="请输入分类需求"></textarea>
+          <button class="btn primary" @click="send">发送</button>
         </div>
       </section>
     </aside>
