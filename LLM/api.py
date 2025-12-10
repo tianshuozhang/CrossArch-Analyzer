@@ -40,8 +40,3 @@ report = orchestrator.analyze_code(code, detailed_msg, filename,"1") #report本�
 
 print(report["llm_enhanced_analysis"]["natural_language_report"]) #LLM的自然语言报告
 print(report["llm_enhanced_analysis"]["json_data"]) #LLM的结构化JSON数据，如果是简要分析这部分是none，如果是详细分析则包含丰富的信息。
-
-
-report = orchestrator.analyze(easy_msg, filename,"1")
-print(report["llm_enhanced_analysis"]["natural_language_report"]) #LLM的自然语言报告
-print(report["llm_enhanced_analysis"]["json_data"]) #LLM的结构化JSON数据，如果是简要分析这部分是none，如果是详细分析则包含丰富的信息。
