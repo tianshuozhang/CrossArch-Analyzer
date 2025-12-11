@@ -11,9 +11,16 @@ def dict_factory(cursor, row):
 
 
 class DBc:
-    def __init__(self, host='localhost', user='root', password='123456',
-                 database='classify_c', port=3306, charset='utf8mb4',
-                 init_table_sql='CREATE TABLE IF NOT EXISTS feeds (_id INT AUTO_INCREMENT PRIMARY KEY, url VARCHAR(255), title VARCHAR(255));'):
+    def __init__(
+        self,
+        host="localhost",
+        user="root",
+        password="123456",
+        database="classify_c",
+        port=3306,
+        charset="utf8mb4",
+        init_table_sql="CREATE TABLE IF NOT EXISTS feeds (_id INT AUTO_INCREMENT PRIMARY KEY, url VARCHAR(255), title VARCHAR(255));",
+    ):
         """
         初始化MySQL连接
         参数说明:
@@ -35,7 +42,7 @@ class DBc:
                 port=port,
                 charset=charset,
                 cursorclass=DictCursor,  # 使用DictCursor直接返回字典
-                autocommit=False  # 关闭自动提交，使用手动提交
+                autocommit=False,  # 关闭自动提交，使用手动提交
             )
             self.cursor = self.con.cursor()
 
@@ -76,14 +83,14 @@ class DBc:
         # 使用参数化查询防止SQL注入
         self.execute("DELETE FROM feeds WHERE _id = %s", (id,))
 
-    def selectall(self, where='1=1'):
+    def selectall(self, where="1=1"):
         """查询所有数据"""
         # 注意：这里使用参数化查询
         sql = f"SELECT * FROM feeds WHERE {where}"
         self.cursor.execute(sql)
         return self.cursor.fetchall()
 
-    def selectone(self, where='1=1'):
+    def selectone(self, where="1=1"):
         """查询单条数据"""
         sql = f"SELECT * FROM feeds WHERE {where}"
         self.cursor.execute(sql)

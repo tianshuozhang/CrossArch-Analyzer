@@ -301,6 +301,7 @@ class StaticClassifyTool:
                         sentence_tsNode.type
                     ].link_symbols
                     symbol_tsNodes: List[TSNode] = []
+                    symbol_codeNodes = []
                     if link_symbol_sexpr:
                         symbol_tsNodes = findTSNodesWithSExpr(
                             sentence_tsNode,
@@ -320,10 +321,10 @@ class StaticClassifyTool:
                                 symbol_codeNodes.extend(
                                     subTarget_codeNode.linkedCodeNodes
                                 )
-                    symbol_codeNodes = [
+                    symbol_codeNodes.extend(
                         codeNode_graph[symbol_tsNode.text.decode()]
                         for symbol_tsNode in symbol_tsNodes
-                    ]
+                    )
                     symbol_codeNodes.extend(
                         codeNode_graph[sentence_tsNode.id].linkedCodeNodes
                     )
