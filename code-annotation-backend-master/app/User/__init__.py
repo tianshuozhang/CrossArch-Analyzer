@@ -4,10 +4,10 @@ User = Blueprint("User", __name__)
 
 from app.User import routes
 
-from db.user_db import user_DB
+from db.db_user import UserDB
 
-user = user_DB()
+user_DB = UserDB()
 
-res = user.GetSameUsername('admin')
-if res == None:
-    user.addUser('admin', '123456', '11111111111')
+existed = user_DB.checkSameUsername("admin")
+if not existed:
+    user_DB.addUser("admin", "123456")

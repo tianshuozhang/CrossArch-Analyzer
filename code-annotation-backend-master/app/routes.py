@@ -1,13 +1,16 @@
 from app import app
-from app.UserLabel import UserLabel
+
+# from app.UserLabel import UserLabel
+# from app.Mark import Mark
+# from app.Admin import Admin
+# app.register_blueprint(UserLabel, url_prefix="/UserLabel")
+# app.register_blueprint(Mark, url_prefix="/Mark")
+# app.register_blueprint(Admin, url_prefix="/Admin")
+
 from app.Code import Code
 from app.User import User
-from app.Mark import Mark
-from app.Admin import Admin
+from app.Analysis import Analysis
 
-
-app.register_blueprint(UserLabel,url_prefix='/UserLabel')
-app.register_blueprint(Code,url_prefix='/Code')
-app.register_blueprint(User,url_prefix='/User')
-app.register_blueprint(Mark,url_prefix='/Mark') 
-app.register_blueprint(Admin,url_prefix='/Admin') 
+app.register_blueprint(User, url_prefix="/User")
+app.register_blueprint(Code, url_prefix="/Code")
+app.register_blueprint(Analysis, url_prefix="/Analysis")

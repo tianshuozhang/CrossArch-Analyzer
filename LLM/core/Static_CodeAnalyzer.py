@@ -66,9 +66,7 @@ class Static_CodeAnalyzer:
         # 假设 SymbolTagger.tag 是静态方法，或通过类名调用
         taggedSymbols: Dict[str, str] = SymbolTagger.tag(symbols_list)
 
-        relevant_tags = sum(
-            1 for arch in taggedSymbols.values() if arch != "irrelevant"
-        )
+        relevant_tags = sum(1 for arch in taggedSymbols.values() if arch != "common")
         print(f"符号标记完成。发现与体系结构相关的符号数量: {relevant_tags}")
         print("-------------------------------------------------------")
 
