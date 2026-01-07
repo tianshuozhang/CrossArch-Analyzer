@@ -1,7 +1,6 @@
 import os
 import json
 from agents.enhanced_orchestrator import EnhancedOrchestratorAgent
-from agents.Project_orchestrator import Project_orchestrator
 from services.build_system_analyzer import BuildSystemAnalyzer
 from services.cross_file_correlator import CrossFileCorrelator
 from dependency_graph_generator import DependencyGraphGenerator
@@ -21,9 +20,8 @@ def initialize_components():
 
         # 创建主Agent
         orchestrator = EnhancedOrchestratorAgent(llm_config, "main_orchestrator")
-        pro_orchestrator = Project_orchestrator(llm_config, "pro_orchestrator")
         print("✅ 组件初始化成功")
-        return orchestrator,pro_orchestrator
+        return orchestrator
         
     except ImportError as e:
         print(f"❌ 导入错误: {e}")
@@ -46,7 +44,7 @@ def main():
     project_root = "./LLM/config/test_project" # <--- 请将此路径修改为测试项目根目录
 
     # 2. 初始化组件
-    orchestrator,pro_orchestrator = initialize_components()
+    orchestrator = initialize_components()
     if not orchestrator:
         print("❌ 初始化失败，程序退出")
         return
@@ -93,12 +91,9 @@ def main():
     }
     save_project_report(full_project_report, "LLM/result/demo2_project_report.json")
 
-    # print("\n" + "-" * 70)
-    # print("🎉 增强版演示完成!")
-    # print("报告 'demo2_project_report.json' 已生成，其中包含了前端可视化所需的一切数据。")
-    print("\n--- [阶段 4] 使用项目编排智能体进行综合分析 ---")
-    final_report = pro_orchestrator.analyze_project_architecture(full_project_report,"请对整个项目的架构依赖情况进行综合分析，并提出改进建议。")
-    save_project_report(final_report, "LLM/result/demo2_final_report.json")
+    print("\n" + "-" * 70)
+    print("🎉 增强版演示完成!")
+    print("报告 'demo2_project_report.json' 已生成，其中包含了前端可视化所需的一切数据。")
     # 获取Agent状态
     status = orchestrator.get_agent_status()
     print("Agent状态:", status)
