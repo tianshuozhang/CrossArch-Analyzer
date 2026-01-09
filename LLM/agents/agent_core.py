@@ -65,7 +65,7 @@ class WholeFileAnalysisAgent:
             final_message = result["messages"][-1]
             output_text = final_message.content
             
-            if self._verify_file_analysis_saved(file_path):
+            if self._verify_file_analysis_saved(file_path,file_index):
                 return {
                     'status': 'success',
                     'file': file_path,
@@ -73,6 +73,10 @@ class WholeFileAnalysisAgent:
                     'output': output_text
                 }
             else:
+                print(f"⚠️ 文件分析结果未保存: {file_path}")
+                print("🤖 Agent 输出:"
+                      f"\n{output_text}\n")
+                exit(1)
                 return {
                     'status': 'failed',
                     'file': file_path,
@@ -207,13 +211,12 @@ asm("movq %rax, %rbx");          // x86
 
 ---
 
-### 步骤3: 汇总并保存结果
-
-读取完所有区间后，调用 `save_analysis_result` **一次性保存**：
+### 步骤3: 汇总并保存结果（必须）
+读取完这个文件的所有区间后，调用名为`save_analysis_result`的SaveAnalysisResultTool进行**一次性保存**：
 
 ```python
 save_analysis_result(
-    data_type="manual_file_{file_path.replace('/', '_')}",
+    data_type="manual_file_{file_index}",
     data={{
         "{file_path}": {{
             "status": "manual_success",
@@ -252,7 +255,7 @@ save_analysis_result(
 
 ---
 
-### 步骤4: 完成标记
+### 步骤4: 完成标记（必须）
 
 保存完成后，回复：
 
@@ -260,6 +263,7 @@ save_analysis_result(
 ✅ 已完成 {file_path} 的完整分析
   - 分析区间数: {len(all_error_regions)}
   - 发现架构: [列出]
+  - 保存文件路径： manual_file_{file_path.replace('/', '_')}.json
 ```
 
 ---
@@ -301,10 +305,10 @@ save_analysis_result(
         
         return prompt
     
-    def _verify_file_analysis_saved(self, file_path: str) -> bool:
+    def _verify_file_analysis_saved(self, file_path: str, file_index: int) -> bool:
         """验证文件分析结果是否已保存"""
-        safe_filename = file_path.replace('/', '_').replace('\\', '_')
-        pattern = f"manual_file_{safe_filename}.json"
+        # safe_filename = file_path.replace('/', '_').replace('\\', '_')
+        pattern = f"manual_file_{file_index}.json"
         
         analysis_files = list(self.output_dir.glob(pattern))
         

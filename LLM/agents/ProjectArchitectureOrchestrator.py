@@ -358,8 +358,8 @@ class ProjectArchitectureOrchestrator:
             output_dir=output_dir,
             verbose=True
         )
-        
-        for file_idx, file_task in enumerate(file_tasks, 1):
+        from tqdm import tqdm
+        for file_idx, file_task in tqdm(enumerate(file_tasks, 1), total=total_files, desc="处理文件"):
             total_regions = len(file_task.error_regions)
             
             print(f"\n{'─'*60}")
