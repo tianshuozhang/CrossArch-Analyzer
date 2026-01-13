@@ -3,8 +3,6 @@
 核心改进：将多个报错行分组为多个需要分析的区间
 """
 from typing import Dict, Any, List, Optional, Tuple
-import json
-import re
 import os
 import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -54,7 +52,7 @@ class StaticAnalysisWrapper:
             
             if error_lines is not None:
                 # 解析失败 - 提取所有报错行并分组为区间
-                all_error_lines = self._extract_all_error_lines(error_lines, code_content)
+                all_error_lines = sorted(set(error_lines))
                 error_regions = self._group_errors_into_regions(all_error_lines, code_content)
                 
                 return {
@@ -91,63 +89,7 @@ class StaticAnalysisWrapper:
         
         return results
     
-    def _extract_all_error_lines(self, error_lines: Any, code_content: str) -> List[int]:
-        """
-        从错误信息中提取所有失败的行号
-        
-        Args:
-            error_lines: 错误行信息（可能是列表、字符串、元组等）
-            code_content: 源代码内容
-        
-        Returns:
-            排序后的错误行号列表
-        """
-        extracted_lines = []
-        total_lines = len(code_content.split('\n'))
-        
-        # 情况1: error_lines 是列表或元组
-        if isinstance(error_lines, (list, tuple)):
-            for item in error_lines:
-                if isinstance(item, (int, float)):
-                    line_num = int(item)
-                    if 1 <= line_num <= total_lines:
-                        extracted_lines.append(line_num)
-                elif isinstance(item, str):
-                    # 从字符串中提取数字
-                    numbers = re.findall(r'\d+', item)
-                    for num in numbers:
-                        line_num = int(num)
-                        if 1 <= line_num <= total_lines:
-                            extracted_lines.append(line_num)
-                elif isinstance(item, (tuple, list)) and len(item) >= 1:
-                    # 可能是 (line, col) 格式
-                    if isinstance(item[0], (int, float)):
-                        line_num = int(item[0])
-                        if 1 <= line_num <= total_lines:
-                            extracted_lines.append(line_num)
-        
-        # 情况2: error_lines 是单个数字
-        elif isinstance(error_lines, (int, float)):
-            line_num = int(error_lines)
-            if 1 <= line_num <= total_lines:
-                extracted_lines.append(line_num)
-        
-        # 情况3: error_lines 是字符串
-        elif isinstance(error_lines, str):
-            numbers = re.findall(r'\d+', error_lines)
-            for num in numbers:
-                line_num = int(num)
-                if 1 <= line_num <= total_lines:
-                    extracted_lines.append(line_num)
-        
-        # 去重并排序
-        extracted_lines = sorted(set(extracted_lines))
-        
-        # 如果一个都没提取到，返回中间位置作为fallback
-        if not extracted_lines:
-            extracted_lines = [total_lines // 2]
-        
-        return extracted_lines
+    
     
     def _group_errors_into_regions(
         self, 
@@ -174,113 +116,30 @@ class StaticAnalysisWrapper:
         
         total_lines = len(code_content.split('\n'))
         half_region = self.region_size // 2
-        
-        # 步骤1: 为每个错误行创建初始区间
-        raw_regions = []
+        start = 0
+        end = 0
+        err: Optional[ErrorRegion] = None
+
+        error_regions: List[ErrorRegion] = []
         for error_line in error_lines:
             # 以错误行为中心，向前后扩展
+            if error_line>start and error_line<=end:
+                err.error_lines.append(error_line)
+                # 已经在当前区间内，跳过
+                continue
+            if err is not None:
+                error_regions.append(err)
             start = max(1, error_line - half_region)
             end = min(total_lines, error_line + half_region)
-            raw_regions.append((start, end, error_line))
-        
-        # 步骤2: 合并重叠区间
-        merged_regions = self._merge_overlapping_regions(raw_regions)
-        
-        # 步骤3: 创建ErrorRegion对象
-        error_regions = []
-        for start, end, errors_in_region in merged_regions:
-            error_regions.append(ErrorRegion(start, end, errors_in_region))
-        
+            err = ErrorRegion(start, end, [error_line])
+
+        error_regions.append(err)
+       
         return error_regions
     
-    def _merge_overlapping_regions(
-        self, 
-        raw_regions: List[Tuple[int, int, int]]
-    ) -> List[Tuple[int, int, List[int]]]:
-        """
-        合并重叠的区间
-        
-        Args:
-            raw_regions: [(start, end, error_line), ...]
-        
-        Returns:
-            [(start, end, [error_lines]), ...]
-        """
-        if not raw_regions:
-            return []
-        
-        # 按起始行排序
-        raw_regions.sort(key=lambda x: x[0])
-        
-        merged = []
-        current_start, current_end, first_error = raw_regions[0]
-        current_errors = [first_error]
-        
-        for i in range(1, len(raw_regions)):
-            next_start, next_end, next_error = raw_regions[i]
-            
-            # 检查是否重叠（包括相邻的情况）
-            if next_start <= current_end + 10:  # 10行内视为可以合并
-                # 合并
-                current_end = max(current_end, next_end)
-                current_errors.append(next_error)
-            else:
-                # 不重叠，保存当前区间，开始新区间
-                merged.append((current_start, current_end, current_errors))
-                current_start = next_start
-                current_end = next_end
-                current_errors = [next_error]
-        
-        # 添加最后一个区间
-        merged.append((current_start, current_end, current_errors))
-        
-        return merged
     
-    def _get_region_context_hint(
-        self, 
-        code_content: str, 
-        region: ErrorRegion
-    ) -> str:
-        """
-        获取区间的上下文提示
-        
-        Returns:
-            简短的上下文描述
-        """
-        lines = code_content.split('\n')
-        start_idx = max(0, region.start_line - 1)
-        end_idx = min(len(lines), region.end_line)
-        
-        region_lines = lines[start_idx:end_idx]
-        
-        # 检查关键特征
-        has_macro = any('#' in line for line in region_lines)
-        has_ifdef = any('ifdef' in line or 'ifndef' in line for line in region_lines)
-        has_asm = any('__asm__' in line or 'asm volatile' in line for line in region_lines)
-        has_intrinsic = any(
-            '_mm_' in line or 'vaddq_' in line or 'vmulq_' in line 
-            for line in region_lines
-        )
-        
-        hints = []
-        if has_macro:
-            hints.append("宏定义")
-        if has_ifdef:
-            hints.append("条件编译")
-        if has_asm:
-            hints.append("内联汇编")
-        if has_intrinsic:
-            hints.append("SIMD指令")
-        
-        error_lines_str = ", ".join(map(str, region.error_lines[:5]))
-        if len(region.error_lines) > 5:
-            error_lines_str += "..."
-        
-        hint_text = f"报错行: {error_lines_str}"
-        if hints:
-            hint_text += f" | 特征: {', '.join(hints)}"
-        
-        return hint_text
+    
+    
     
     def _structure_analysis_result(
         self, 

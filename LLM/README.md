@@ -17,24 +17,13 @@ ProjectArchitectureOrchestrator (编排器)
     ├─► FileScanner (文件扫描器)
     ├─► StaticAnalysisWrapper (静态分析包装器)
     ├─► ArchitectureAnalysisAgent (批量静态分析Agent)
-    ├─► WholeFileAnalysisAgent (整文件手动分析Agent)
+    ├─► WholeFileAnalysisAgent (文件大模型手动分析Agent)
     └─► ArchitectureReportGenerator (报告生成器)
 ```
 
 ## 完整数据流
 
-### 阶段 1️⃣：初始化 (INIT)
-
-```
-输入: project_path
-  │
-  ├─► FileScanner 初始化
-  └─► StaticAnalysisWrapper 初始化
-```
-
----
-
-### 阶段 2️⃣：预筛选 (PRE_SCREENING)
+### 阶段 1️⃣：预筛选 (PRE_SCREENING)
 
 ```
 FileScanner.scan_all_files()
@@ -56,10 +45,9 @@ ArchitectureHeuristics.is_likely_arch_related()
 
 ---
 
-### 阶段 3️⃣：静态分析 (STATIC_ANALYSIS)
+### 阶段 2️⃣：静态分析 (STATIC_ANALYSIS)
 
 #### 模式 A：直接调用模式 (推荐)
-
 ```
 输入: pre_screened_files (98 个文件)
   │
@@ -109,10 +97,6 @@ StaticAnalysisWrapper.batch_analyze_files()
   └─► 失败文件 → 加入 file_tasks (待手动分析)
 ```
 
-**统计示例：**
-- 成功: 93 个文件 → `static_success = 93`
-- 失败: 5 个文件 → `static_failed = 5`
-
 ---
 
 #### 模式 B：Agent 调用模式
@@ -131,14 +115,12 @@ Agent 调用 StaticAnalysisTool
   ▼
 保存: static_analysis_batch_*.json
   
-  ▼
-_parse_static_analysis_result_from_files()
-  └─ 从文件读取并创建 FileTask
 ```
+
 
 ---
 
-### 阶段 4️⃣：手动分析 (MANUAL_PROCESSING)
+### 阶段 3️⃣：手动分析 (MANUAL_PROCESSING)
 
 ```
 输入: file_tasks with error_regions
@@ -188,13 +170,11 @@ _parse_static_analysis_result_from_files()
   └─► 失败 → manual_failed += 1
 ```
 
-**统计示例：**
-- 手动成功: 4 个文件 → `manual_success = 4`
-- 手动失败: 1 个文件 → `manual_failed = 1`
+
 
 ---
 
-### 阶段 5️⃣：报告生成 (REPORT_GENERATION)
+### 阶段 4️⃣：报告生成 (REPORT_GENERATION)
 
 ```
 ArchitectureReportGenerator.load_all_analysis_results()
@@ -378,10 +358,10 @@ orchestrator = ProjectArchitectureOrchestrator(
 │ 阶段2: 静态分析                                             │
 │ StaticAnalysisWrapper (tree-sitter)                       │
 │                                                            │
-│ 成功 (93 文件) → processed_tasks                           │
+│ 成功 → processed_tasks                           │
 │   └─ 保存: static_analysis_batch_1.json                   │
 │                                                            │
-│ 失败 (5 文件) → file_tasks                                 │
+│ 失败 → file_tasks                                 │
 │   └─ 提取错误区间 (error_regions)                          │
 └───────────────────────────────────────────────────────────┘
   │
@@ -395,10 +375,10 @@ orchestrator = ProjectArchitectureOrchestrator(
 │   2. LLM 分析架构依赖                                       │
 │   3. 保存结果                                              │
 │                                                            │
-│ 成功 (4 文件) → processed_tasks                            │
+│ 成功 → processed_tasks                            │
 │   └─ 保存: manual_file_*.json                             │
 │                                                            │
-│ 失败 (1 文件) → failed_tasks                               │
+│ 失败→ failed_tasks                               │
 └───────────────────────────────────────────────────────────┘
   │
   ▼
@@ -411,8 +391,8 @@ orchestrator = ProjectArchitectureOrchestrator(
 │                                                            │
 │ 最终统计:                                                   │
 │   - 总分析: 97 个文件                                        │
-│   - 静态成功: 93                                            │
-│   - 手动成功: 4                                             │
+│   - 静态成功: 4                                            │
+│   - 手动成功: 93                                             │
 │   - 失败: 1                                                 │
 └───────────────────────────────────────────────────────────┘
   │
@@ -424,36 +404,7 @@ orchestrator = ProjectArchitectureOrchestrator(
 
 ## 关键设计特点
 
-### 1. 一个文件的所有区间一次性分析
 
-**优势：**
-- 避免重复的上下文加载
-- 利用文件全局信息判断架构
-- 效率提升 3-5 倍
-
-```python
-# 原设计（低效）
-for region in file.regions:
-    agent.analyze_single_region(region)  # 调用 N 次
-
-# 新设计（高效）
-agent.analyze_whole_file(file, all_regions)  # 调用 1 次
-```
-
-### 2. 确保所有预筛选文件都被分析
-
-```python
-def _perform_direct_static_analysis(pre_screened_files, output_dir):
-    # 批量读取**所有**预筛选文件
-    files_content = self.file_scanner.batch_read_files(pre_screened_files)
-    
-    # 批量分析**所有**文件
-    analysis_results = self.static_analyzer.batch_analyze_files(files_content)
-    
-    # 为**每个**文件创建任务
-    for file_path, result in analysis_results.items():
-        # 处理每个文件...
-```
 
 ### 3. 统一的任务管理
 
@@ -463,37 +414,3 @@ def _perform_direct_static_analysis(pre_screened_files, output_dir):
 - 最终失败 → `failed_tasks`
 
 ---
-
-## 性能指标
-
-基于 98 个文件的实际项目测试：
-
-| 指标 | 数值 |
-|------|------|
-| 预筛选耗时 | ~5 秒 |
-| 静态分析耗时 | ~15 秒 |
-| 手动分析耗时（5 文件） | ~90 秒 |
-| 总耗时 | ~120 秒 |
-| 成功率 | 97/98 (99%) |
-
----
-
-## 故障排查
-
-### 问题：静态成功为 0
-
-**原因：** Agent 模式下文件保存延迟
-
-**解决：** 使用直接调用模式 `use_agent_for_static_analysis=False`
-
-### 问题：手动分析失败率高
-
-**原因：** 区间过大或 LLM 理解错误
-
-**解决：** 调整 `region_size` 参数或优化 prompt
-
----
-
-## 许可证
-
-MIT License

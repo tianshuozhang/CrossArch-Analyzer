@@ -32,30 +32,21 @@ from core.state_manager import StateManager
 from core.memory_manager import MemoryManager
 from langchain_classic.memory import ConversationBufferWindowMemory
 from utils import setup_environment
+from tqdm import tqdm
 
-
-class AnalysisPhase(Enum):
-    """分析阶段"""
-    INIT = "init"
-    PRE_SCREENING = "pre_screening"
-    STATIC_ANALYSIS = "static_analysis"
-    MANUAL_PROCESSING = "manual_processing"
-    REPORT_GENERATION = "report_generation"
-    COMPLETED = "completed"
-    ERROR = "error"
 
 
 class FileTask:
     """文件级任务"""
     def __init__(self, file_path: str):
         self.file_path = file_path
-        self.error_regions = []
+        self.error_regions:List = []
         self.status = 'pending'
         self.result = None
         self.is_from_static_analysis = False
     
-    def add_region(self, region_info: Dict[str, Any]):
-        self.error_regions.append(region_info)
+    def add_region(self, regions: Dict[str, Any]):
+        self.error_regions.append(regions)
     
     def has_errors(self) -> bool:
         return len(self.error_regions) > 0
@@ -84,7 +75,6 @@ class ProjectArchitectureOrchestrator:
         self.agent_id = agent_id
         self.llm = ChatOpenAI(**llm_config)
         self.use_agent_for_static_analysis = use_agent_for_static_analysis
-        self.current_phase = AnalysisPhase.INIT
         
         # 状态管理
         self.state_manager = StateManager()
@@ -134,18 +124,17 @@ class ProjectArchitectureOrchestrator:
         
         try:
             # 阶段1: 初始化
-            self._transition_to(AnalysisPhase.INIT)
-            self._initialize_components(project_path)
+            self.file_scanner = FileScanner(project_path)
+            self.static_analyzer = StaticAnalysisWrapper(region_size=100)
+            print(f"✅ 组件初始化完成\n")
             
             # 阶段2: 预筛选
-            self._transition_to(AnalysisPhase.PRE_SCREENING)
             pre_screened_files = self._perform_pre_screening()
             self.stats['total_pre_screened'] = len(pre_screened_files)
             
             print(f"✅ 预筛选完成：{len(pre_screened_files)} 个潜在架构相关文件\n")
             
             # 阶段3: 静态分析（根据模式选择）
-            self._transition_to(AnalysisPhase.STATIC_ANALYSIS)
             if self.use_agent_for_static_analysis:
                 self._perform_agent_static_analysis(pre_screened_files, output_dir)
             else:
@@ -155,30 +144,20 @@ class ProjectArchitectureOrchestrator:
             manual_files = [task for task in self.file_tasks.values() if task.has_errors()]
             
             if manual_files:
-                self._transition_to(AnalysisPhase.MANUAL_PROCESSING)
-                self._process_files_with_all_regions(manual_files, output_dir)
+                self._perform_manual_analysis(manual_files, output_dir)
             
             # 阶段5: 生成报告
-            self._transition_to(AnalysisPhase.REPORT_GENERATION)
             final_report = self._generate_final_report(
                 project_path, user_query, output_dir, start_time
             )
             
-            self._transition_to(AnalysisPhase.COMPLETED)
             return final_report
             
         except Exception as e:
-            self._transition_to(AnalysisPhase.ERROR)
             print(f"\n❌ 分析过程出错: {e}\n")
             import traceback
             traceback.print_exc()
             return self._create_error_response(str(e))
-    
-    def _initialize_components(self, project_path: str):
-        """初始化扫描器和分析器"""
-        self.file_scanner = FileScanner(project_path)
-        self.static_analyzer = StaticAnalysisWrapper(region_size=100)
-        print(f"✅ 组件初始化完成\n")
     
     def _perform_pre_screening(self) -> List[str]:
         """执行预筛选"""
@@ -233,7 +212,40 @@ class ProjectArchitectureOrchestrator:
         time.sleep(1)
         
         # 解析结果
-        self._parse_static_analysis_result_from_files(output_dir)
+        print(f"\n📂 正在解析静态分析结果...\n")
+        
+        batch_files = list(output_dir.glob("static_analysis_batch_*.json"))
+        
+        if not batch_files:
+            print(f"⚠️  警告：未找到静态分析结果文件\n")
+            return
+        
+        all_results = {}
+        
+        for batch_file in batch_files:
+            try:
+                with open(batch_file, 'r', encoding='utf-8') as f:
+                    batch_data = json.load(f)
+                    all_results.update(batch_data)
+            except Exception as e:
+                print(f"⚠️  读取 {batch_file.name} 失败: {e}")
+                continue
+        
+        if all_results:
+            self._process_analysis_results(all_results)
+            
+            print(f"📊 静态分析完成：")
+            print(f"  ✅ 成功: {self.stats['static_success']} 个文件")
+            print(f"  ⚠️  失败: {self.stats['static_failed']} 个文件")
+            
+            total_regions = sum(
+                len(task.error_regions) 
+                for task in self.file_tasks.values() 
+                if task.has_errors()
+            )
+            print(f"  🔍 总错误区间数: {total_regions}\n")
+        else:
+            print(f"⚠️  警告：静态分析结果为空\n")
     
     def _perform_direct_static_analysis(
         self, 
@@ -283,8 +295,8 @@ class ProjectArchitectureOrchestrator:
                 task.status = 'pending'
                 task.is_from_static_analysis = True
                 
-                for region_info in result.get('error_regions', []):
-                    task.add_region(region_info)
+                for regions in result.get('error_regions', []):
+                    task.add_region(regions)
                 
                 self.stats['static_failed'] += 1
             
@@ -294,56 +306,13 @@ class ProjectArchitectureOrchestrator:
                 self.stats['static_failed'] += 1
             
             self.file_tasks[file_path] = task
-    
-    def _parse_static_analysis_result_from_files(self, output_dir: Path):
-        """从保存的文件中解析Agent模式的静态分析结果"""
-        print(f"\n📂 正在解析静态分析结果...\n")
-        
-        batch_files = list(output_dir.glob("static_analysis_batch_*.json"))
-        
-        if not batch_files:
-            print(f"⚠️  警告：未找到静态分析结果文件\n")
-            return
-        
-        all_results = {}
-        
-        for batch_file in batch_files:
-            try:
-                with open(batch_file, 'r', encoding='utf-8') as f:
-                    batch_data = json.load(f)
-                    all_results.update(batch_data)
-            except Exception as e:
-                print(f"⚠️  读取 {batch_file.name} 失败: {e}")
-                continue
-        
-        if all_results:
-            self._process_analysis_results(all_results)
-            
-            print(f"📊 静态分析完成：")
-            print(f"  ✅ 成功: {self.stats['static_success']} 个文件")
-            print(f"  ⚠️  失败: {self.stats['static_failed']} 个文件")
-            
-            total_regions = sum(
-                len(task.error_regions) 
-                for task in self.file_tasks.values() 
-                if task.has_errors()
-            )
-            print(f"  🔍 总错误区间数: {total_regions}\n")
-        else:
-            print(f"⚠️  警告：静态分析结果为空\n")
-    
-    def _process_files_with_all_regions(
+
+    def _perform_manual_analysis(
         self, 
         file_tasks: List[FileTask], 
         output_dir: Path
     ):
-        """按文件处理所有区间"""
-        total_files = len(file_tasks)
-        
-        print(f"\n{'='*60}")
-        print(f"🔧 开始按文件手动分析（共 {total_files} 个文件）")
-        print(f"{'='*60}\n")
-        
+        """对失败的文件进行手动分析"""
         tools = [
             FileReaderTool(
                 file_scanner=self.file_scanner,
@@ -358,15 +327,7 @@ class ProjectArchitectureOrchestrator:
             output_dir=output_dir,
             verbose=True
         )
-        from tqdm import tqdm
-        for file_idx, file_task in tqdm(enumerate(file_tasks, 1), total=total_files, desc="处理文件"):
-            total_regions = len(file_task.error_regions)
-            
-            print(f"\n{'─'*60}")
-            print(f"📝 进度: [{file_idx}/{total_files}] ({file_idx/total_files*100:.1f}%)")
-            print(f"📄 文件: {file_task.file_path}")
-            print(f"🔍 错误区间数: {total_regions}")
-            print(f"{'─'*60}\n")
+        for file_idx, file_task in tqdm(enumerate(file_tasks, 1), total=len(file_tasks), desc="处理文件"):
             
             try:
                 file_task.status = 'processing'
@@ -375,7 +336,7 @@ class ProjectArchitectureOrchestrator:
                     file_path=file_task.file_path,
                     all_error_regions=file_task.error_regions,
                     file_index=file_idx,
-                    total_files=total_files
+                    total_files=len(file_tasks)
                 )
                 
                 if result['status'] == 'success':
@@ -390,10 +351,6 @@ class ProjectArchitectureOrchestrator:
                     self.failed_tasks.append(file_task)
                     self.stats['manual_failed'] += 1
                     print(f"⚠️  文件处理失败: {result.get('error', 'Unknown')}\n")
-                
-                if file_idx % 3 == 0 and file_idx < total_files:
-                    print(f"⏸️  已处理 {file_idx} 个文件，休息2秒...\n")
-                    time.sleep(2)
                     
             except Exception as e:
                 print(f"❌ 处理文件时出错: {e}\n")
@@ -496,11 +453,6 @@ class ProjectArchitectureOrchestrator:
         print(f"{'='*60}\n")
         
         return final_report
-    
-    def _transition_to(self, phase: AnalysisPhase):
-        """状态转换"""
-        print(f"🔄 进入阶段: {phase.value}")
-        self.current_phase = phase
     
     def _create_error_response(self, error_message: str) -> Dict[str, Any]:
         """创建错误响应"""
