@@ -74,9 +74,8 @@ class WholeFileAnalysisAgent:
                 }
             else:
                 print(f"⚠️ 文件分析结果未保存: {file_path}")
-                print("🤖 Agent 输出:"
-                      f"\n{output_text}\n")
-                exit(1)
+                print("🤖 Agent 输出:")
+                print(output_text)
                 return {
                     'status': 'failed',
                     'file': file_path,
@@ -213,7 +212,7 @@ asm("movq %rax, %rbx");          // x86
 
 ### 步骤3: 汇总并保存结果（必须）
 读取完这个文件的所有区间后，调用名为`save_analysis_result`的SaveAnalysisResultTool进行**一次性保存**：
-
+注意保存路径一定是 `manual_file_{file_index}.json`。
 ```python
 save_analysis_result(
     data_type="manual_file_{file_index}",

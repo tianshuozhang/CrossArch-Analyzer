@@ -220,7 +220,7 @@ class ArchitectureHeuristics:
     
     # 架构相关的路径关键词
     ARCH_PATH_KEYWORDS = [
-        'arch', 'platform', 'asm', 'cpu', 'mach',
+        'arch', 'platform', 'asm', 'mach',
         'arm', 'x86', 'riscv', 'mips', 'powerpc',
         'aarch64', 'i386', 'x86_64'
     ]
@@ -231,7 +231,6 @@ class ArchitectureHeuristics:
         '__riscv', '__mips__', '__powerpc__',
         'CONFIG_ARM', 'CONFIG_X86', 'CONFIG_RISCV',
         'ARCH_', 'PLATFORM_'
-        # , 'CPU_'
     ]
     
     # 架构相关的文件名模式
@@ -239,7 +238,6 @@ class ArchitectureHeuristics:
         '_arm', '_x86', '_riscv', '_mips',
         'arm_', 'x86_', 'riscv_', 'mips_',
         'arch', 'platform'
-        # , 'cpu'
     ]
     
     @staticmethod
