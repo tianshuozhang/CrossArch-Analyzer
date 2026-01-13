@@ -24,7 +24,7 @@ if __name__ == "__main__":
     files_content = file_scanner.batch_read_files(pre_screened)
 
     # 初始化编码模型
-    embedding_model = SentenceTransformer("./LLM/models/all-MiniLM-L6-v2", device='cpu')
+    embedding_model = SentenceTransformer("./LLM/models/all-MiniLM-L6-v2", device='cuda')
     # 初始化向量数据库
     dimension = embedding_model.get_sentence_embedding_dimension()
 
@@ -32,6 +32,8 @@ if __name__ == "__main__":
     analyzer = Static_CodeAnalyzer()
 
     high_similarity_errors = []
+
+    num_errorlines = 0
 
     # 记录总的时间
     total_start_time = time.time()
@@ -57,10 +59,12 @@ if __name__ == "__main__":
         
         # 记录编码时间
         encoding_start_time = time.time()
-        embeddings = [embedding_model.encode(file_scanner.read_file(file, line, line + 1)) for line in error_lines]
+        embeddings = [embedding_model.encode(file_scanner.read_file(file, line-1, line + 1)) for line in error_lines]
         encoding_end_time = time.time()
         total_encoding_time += (encoding_end_time - encoding_start_time)
-        
+
+        num_errorlines += len(error_lines)
+
         simlarity_start_time = time.time()
         # 使用 K-means 聚类来选择代表性错误行
         if len(embeddings) > 1:  # 确保至少有两个错误行
@@ -92,6 +96,7 @@ if __name__ == "__main__":
     print(f"总耗时: {total_time:.2f} seconds")
     print(f"静态分析总时间: {total_analysis_time:.2f} seconds")
     print(f"编码总时间: {total_encoding_time:.2f} seconds")
+    print(f"每条错误行平均编码时间: {total_encoding_time/num_errorlines:.2f} seconds")
     print(f"相似度计算总时间: {total_similarity_time:.2f} seconds")
 
     # 打印每个文件的最具代表性的错误行
