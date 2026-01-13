@@ -62,6 +62,9 @@ class TSTypes:
 
     ATTRIBUTE = "attribute"
 
+    TEMPLATE_FUNCTION = "template_function"
+    TEMPLATE_TYPE = "template_type"
+
     GROUP_PREPROC_COND = [
         PREPROC_IF,
         PREPROC_IFDEF,
@@ -92,12 +95,17 @@ class SExpressionTemplate:
             subStr = f"({ts_type})"
         return f"{subStr} @0"
 
-    def wrapper_with_child(ts_type: str, field: str, child: str) -> str:
+    def wrapper_with_child(ts_type: str, field: str, child: str, tag=True) -> str:
         if child[0] == "#":
             subStr = '"' + child + '"'
+        elif child[0] == "(":
+            subStr = child
         else:
             subStr = f"({child})"
-        return f"({ts_type} {field}: {subStr} @0)"
+        if tag:
+            return f"({ts_type} {field}: {subStr} @0)"
+        else:
+            return f"({ts_type} {field}: {subStr})"
 
     ERROR = " ".join([wrapper(TSTypes.ERROR), wrapper(TSTypes.MISSING)])
 
@@ -117,6 +125,8 @@ class SExpressionTemplate:
             wrapper(TSTypes.EXPRESSION_STMT),
             wrapper(TSTypes.DECLARATION),
             wrapper(TSTypes.PREPROC_DEFINE),
+            wrapper(TSTypes.USING_TYPE),
+            wrapper(TSTypes.TYPEDEF),
         ]
     )
 
@@ -146,6 +156,16 @@ class SExpressionTemplate:
                     ),
                     wrapper_with_child(
                         TSTypes.FUNCTION_DECLARATION, "declarator", TSTypes.IDENTIFIER
+                    ),
+                    wrapper_with_child(
+                        TSTypes.FUNCTION_DECLARATION,
+                        "declarator",
+                        wrapper_with_child(
+                            TSTypes.TEMPLATE_FUNCTION,
+                            "name",
+                            TSTypes.IDENTIFIER,
+                        ),
+                        False,
                     ),
                 ]
             ),
@@ -181,7 +201,17 @@ class SExpressionTemplate:
                 [
                     wrapper_with_child(
                         TSTypes.FUNCTION_DECLARATION, "declarator", TSTypes.IDENTIFIER
-                    )
+                    ),
+                    wrapper_with_child(
+                        TSTypes.FUNCTION_DECLARATION,
+                        "declarator",
+                        wrapper_with_child(
+                            TSTypes.TEMPLATE_FUNCTION,
+                            "name",
+                            TSTypes.IDENTIFIER,
+                        ),
+                        False,
+                    ),
                 ]
             ),
             link_symbols=None,
@@ -199,7 +229,15 @@ class SExpressionTemplate:
                 [
                     wrapper_with_child(
                         TSTypes.STRUCT_DEF, "name", TSTypes.TYPE_IDENTIFIER
-                    )
+                    ),
+                    wrapper_with_child(
+                        TSTypes.STRUCT_DEF,
+                        "name",
+                        wrapper_with_child(
+                            TSTypes.TEMPLATE_TYPE, "name", TSTypes.TYPE_IDENTIFIER
+                        ),
+                        False,
+                    ),
                 ]
             ),
             link_symbols=None,
@@ -256,10 +294,12 @@ def _findDefineIdentInTSNode(defineArg_tsNode: TSNode) -> List[TSNode]:
     )
     foundIdent_tsNodes = []
     for defineArg_tsNode in defineArg_tsNodes:
-        subCode = defineArg_tsNode.child_by_field_name("value").text.decode()
-        subRootNode, _ = parse(subCode)
-        defineIdent = findTSNodesWithSExpr(subRootNode, SExpressionTemplate.IDENT)
-        foundIdent_tsNodes.extend(defineIdent)
+        valueNode = defineArg_tsNode.child_by_field_name("value")
+        if valueNode:
+            subCode = valueNode.text.decode()
+            subRootNode, _ = parse(subCode)
+            defineIdent = findTSNodesWithSExpr(subRootNode, SExpressionTemplate.IDENT)
+            foundIdent_tsNodes.extend(defineIdent)
     return foundIdent_tsNodes
 
 
@@ -271,3 +311,16 @@ def findFilteredIdentInTSNode(ts_node: TSNode) -> List[TSNode]:
     total_ident = defineIdent + idAndASM
     rubbish = findTSNodesWithSExpr(ts_node, SExpressionTemplate.RUBBISH_IDENT)
     return [n for n in total_ident if n not in rubbish]
+
+
+def findAncestorUntil(ts_node: TSNode, endTypes: List[str]):
+    ret = ts_node
+    p = ret
+    while ret:
+        if ret.type in endTypes:
+            return ret
+        ret = ret.parent
+        p = ret
+        if ret.type == "translation_unit":
+            return p
+    raise ValueError(f"{p.type}")
