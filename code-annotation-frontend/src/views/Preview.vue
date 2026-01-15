@@ -381,15 +381,25 @@ export default {
         fd.append('code', codeText || '')
         fd.append('language', ['c','h','cpp','cc','cxx','py','js','ts','java','go','rs'].includes(ext) ? ext : 'c')
         fd.append('prompt', this.inputText || '')
-        const r = await fetch(base + '/Analysis/analyze', { method: 'POST', body: fd })
-        if (!r || !r.ok) { this.toast('后端分析失败，保留未标注预览'); return false }
-        const data = await r.json().catch(() => null)
-        if (!data || data.state !== 'success' || !data.rst) { this.toast('后端分析失败，保留未标注预览'); return false }
-        const { reply, annotations, report, stats } = data.rst
-        this.lastReply = reply || ''
-        this.applyAnnotations(this.selectedFilePath, annotations || [])
-        this.reportData = report || null
-        this.serverStats = stats || null
+        if (!this.inputText){
+          const r = await fetch(base + '/Analysis/analyze', { method: 'POST', body: fd })
+          if (!r || !r.ok) { this.toast('后端分析失败，保留未标注预览'); return false }
+          const data = await r.json().catch(() => null)
+          if (!data || data.state !== 'success' || !data.rst) { this.toast('后端分析失败，保留未标注预览'); return false }
+          const { reply, annotations, report, stats } = data.rst
+          this.lastReply = reply || ''
+          this.applyAnnotations(this.selectedFilePath, annotations || [])
+          this.reportData = report || null
+          this.serverStats = stats || null
+        }
+        else{
+          const r = await fetch(base + '/Analysis/chat', { method: 'POST', body: fd })
+          if (!r || !r.ok) { this.toast('后端分析失败，保留未标注预览'); return false }
+          const data = await r.json().catch(() => null)
+          if (!data || data.state !== 'success' || !data.rst) { this.toast('后端分析失败，保留未标注预览'); return false }
+          this.lastReply = data.rst
+          return true
+        }
         this.$nextTick(() => Prism.highlightAll())
         this.toast('分析完成，已应用标注与统计')
         return true
@@ -401,7 +411,7 @@ export default {
     applyAnnotations(path, annotations) {
       const lines = sampleCode[path] || []
       annotations.forEach(a => {
-        const i = typeof a.line === 'number' ? a.line : (typeof a.index === 'number' ? a.index : -1)
+        const i = typeof a.line === 'number' ? a.line - 1: (typeof a.index === 'number' ? a.index : -1)
         if (i >= 0 && i < lines.length) {
           const tags = Array.isArray(a.tags) ? a.tags : (a.tag ? [a.tag] : [])
           lines[i] = Object.assign({}, lines[i], { tags, type: a.type, fn: a.fn })

@@ -43,7 +43,7 @@ class SymbolTagger:
             ]
         ):
             return "riscv"
-        return "irrelevant"
+        return "common"
 
     def _tag_asm(symbolName: str):
         def _parse_asm_code(asm_code: str):
@@ -172,7 +172,7 @@ class SymbolTagger:
                 return "mips"
             if "$" in parse_result["reg"] and "." in parse_result["opcode"]:
                 return "loongISA"
-            return "irrelevant"
+            return "common"
 
         if re.search(r"__?asm\{.*\}", symbolName):
             return "x86"
@@ -186,7 +186,7 @@ class SymbolTagger:
         for k, v in macro_data.items():
             if symbolName in v:
                 return k
-        return "irrelevant"
+        return "common"
 
     def _tag_attribute(symbolName: str, attribute_data: Dict):
         m = re.match(r"__attribute__\(\(([^\)]*)\)\)", symbolName)
@@ -195,7 +195,7 @@ class SymbolTagger:
         for k, v in attribute_data.items():
             if symbolName in v:
                 return k
-        return "irrelevant"
+        return "common"
 
     def tag(symbols: List[Tuple[str, str]]):
         macro_data = {}
@@ -208,7 +208,7 @@ class SymbolTagger:
         taggedSymbols = {}
         for symbol in symbols:
             symbolName, syntax = symbol
-            arch = "irrelevant"
+            arch = "common"
             if syntax in ["function", "type"]:
                 arch = SymbolTagger._tag_intrinsics(symbolName)
             elif syntax == "macro":

@@ -36,8 +36,8 @@
       </a-form-item>
     </a-form>
   </div>
-  </template>
-  <script>
+</template>
+<script>
   import { defineComponent, reactive } from "vue";
   import path from "@/api/path.js";
   import { postData } from "@/api/webpost";
@@ -78,8 +78,8 @@
       return { formState, onFinish, onFinishFailed, handleLogin, enterAsGuest };
     },
   });
-  </script>
-  <style scoped>
+</script>
+<style scoped>
   .container { display: flex; justify-content: center; align-items: center; min-height: 650px; background-size: cover; background: #eeeded; }
   .login-form { border-radius: 6px; background: #ffffff; width: 350px; padding: 25px 25px 5px 25px; }
-  </style>
+</style>

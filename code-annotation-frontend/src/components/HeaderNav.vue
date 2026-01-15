@@ -28,8 +28,8 @@
       </a-sub-menu>
     </a-menu>
   </div>
-  </template>
-  <script>
+</template>
+<script>
   import { defineComponent, ref } from "vue";
   import { UserOutlined } from "@ant-design/icons-vue";
   import { useRouter } from "vue-router";
@@ -71,8 +71,8 @@
       return { curPage, toIndex, changePage, userId, isVisitor, handleExit };
     },
   });
-  </script>
-  <style scoped>
-  .menu { display: flex; align-items: center; justify-content: space-between; height: 70px; }
-  .logo { margin: 10px 10px 10px 20px; height: 45px; width: 45px; border-radius: 8px; background: #333; color: #fff; display:flex; align-items:center; justify-content:center; font-weight:600; }
-  </style>
+</script>
+<style scoped>
+.menu { display: flex; align-items: center; justify-content: space-between; height: 70px; }
+.logo { margin: 10px 10px 10px 20px; height: 45px; width: 45px; border-radius: 8px; background: #333; color: #fff; display:flex; align-items:center; justify-content:center; font-weight:600; }
+</style>
