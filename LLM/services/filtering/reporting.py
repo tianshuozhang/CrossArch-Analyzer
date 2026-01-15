@@ -228,14 +228,29 @@ def _write_markdown_report(md_path: str, data: Dict[str, Any]) -> None:
 
 
 def _write_markdown_header(f, data: Dict[str, Any]) -> None:
-    """写入 Markdown 报告头部"""
+    """
+    写入 Markdown 报告头部
+    
+    Args:
+        f: 文件对象
+        data: 报告数据字典
+    """
     f.write(f"# 预筛选分析报告：{data.get('project_name', '(unknown)')}\n\n")
     f.write(f"- 项目根目录：`{data.get('project_root', '')}`\n")
     f.write(f"- 生成时间：`{data.get('generated_at', '')}`\n\n")
 
 
 def _write_markdown_overview(f, total_loaded: int, kept: int, dropped: int, drop_rate: float) -> None:
-    """写入总览统计"""
+    """
+    写入总览统计
+    
+    Args:
+        f: 文件对象
+        total_loaded: 总加载文件数
+        kept: 保留文件数
+        dropped: 丢弃文件数
+        drop_rate: 过滤率
+    """
     f.write("## 总览\n\n")
     f.write(f"- 总加载文件数（C/C++）：**{total_loaded}**\n")
     f.write(f"- 保留文件数：**{kept}**\n")
@@ -244,7 +259,13 @@ def _write_markdown_overview(f, total_loaded: int, kept: int, dropped: int, drop
 
 
 def _write_markdown_screening_log(f, screening: Dict[str, Any]) -> None:
-    """写入预筛选日志"""
+    """
+    写入预筛选日志
+    
+    Args:
+        f: 文件对象
+        screening: 预筛选数据字典
+    """
     f.write("## 预筛选日志（原始输出）\n\n")
     f.write("```text\n")
     f.write((screening.get("log") or "").strip() + "\n")
@@ -252,7 +273,14 @@ def _write_markdown_screening_log(f, screening: Dict[str, Any]) -> None:
 
 
 def _write_markdown_file_lists(f, kept_files: List[str], dropped_files: List[str]) -> None:
-    """写入文件清单"""
+    """
+    写入文件清单
+    
+    Args:
+        f: 文件对象
+        kept_files: 保留文件列表
+        dropped_files: 丢弃文件列表
+    """
     f.write("## 清单（节选）\n\n")
     
     # 保留文件列表
@@ -271,14 +299,20 @@ def _write_markdown_file_lists(f, kept_files: List[str], dropped_files: List[str
 
 
 def _write_markdown_audit_section(f, audit: Dict[str, Any]) -> None:
-    """写入审计结果部分"""
+    """
+    写入审计结果部分
+    
+    Args:
+        f: 文件对象
+        audit: 审计数据字典
+    """
     f.write("\n## 审计（可选）\n\n")
     logs = audit.get("logs", {}) or {}
 
     audit_sections = [
         ("basic_verification", "基础验证审计输出"),
-        ("spy_check", "间谍审计输出（反向引用）"),
-        ("content_analysis", "内容审计输出（孤儿头文件 + 符号越狱）"),
+        ("spy_check", "反向引用审计输出"),
+        ("content_analysis", "内容审计输出（孤儿头文件 + 符号匹配）"),
     ]
 
     for log_key, title in audit_sections:
