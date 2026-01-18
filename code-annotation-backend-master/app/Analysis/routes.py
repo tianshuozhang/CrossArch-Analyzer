@@ -5,7 +5,7 @@ from db.db_project import ProjectDB
 from db.db_code import CodeDB
 from db.db_report import ReportDB
 from db.db_user import UserDB
-import db.helper_file as helper_file
+import rubbish.helper_file as helper_file
 
 
 from LLM.api import orchestrator
@@ -94,7 +94,7 @@ def analyze():
         # file_metadata = helper_file.get_metadata_from_zip(project_zip.stream)
         # project_name = project_zip.filename
         # codes_num = sum(1 for meta in file_metadata.values() if meta["file_size"] > 0)
-        project_id = project_DB.addProject(
+        project_id = project_DB.add_project(
             userId, project_name, helper_file.abs_path(project_name), codes_num
         )
         for file_path, meta in file_metadata.items():
