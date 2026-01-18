@@ -27,5 +27,20 @@ let path = {
     modifyLabelID: Ip + "UserLabel/modifyLabelID",
     modifyLabelIntro: Ip + "UserLabel/modifyLabelintro",
   },
+  project: {
+    // 项目管理相关API
+    getProjectList: Ip + "Project/list",
+    createProject: Ip + "Project/create",
+    openProject: Ip + "Project/open",
+    deleteProject: Ip + "Project/delete",
+    renameProject: Ip + "Project/rename",
+    uploadProject: Ip + "Project/upload",
+    getProjectTree: Ip + "Project/tree",
+    updateProject: Ip + "Project/update",
+    // 状态相关API
+    getStatus: Ip + "Status/get",
+    getUploadProgress: Ip + "Status/upload",
+    getAnalysisProgress: Ip + "Status/analysis",
+  }
 };
 export default path;
