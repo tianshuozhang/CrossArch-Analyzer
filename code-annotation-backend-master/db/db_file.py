@@ -1,9 +1,9 @@
 from db.db_mysql import DBc
 from datetime import datetime
 from typing import Optional, List, Dict
-import os
 
 
+# TODO:这里可能有些函数待删除
 class FileDB(DBc):
     def __init__(
         self,
@@ -20,8 +20,8 @@ class FileDB(DBc):
             `id` BIGINT PRIMARY KEY AUTO_INCREMENT NOT NULL UNIQUE,
             `name` VARCHAR(255) NOT NULL COMMENT '文件/目录名（不含路径）',
             `modify_time` DATETIME NOT NULL COMMENT '最后修改时间',
-            `project_id` BIGINT NOT NULL COMMENT '所属项目ID',
             `path` VARCHAR(512) NOT NULL COMMENT '完整路径（如src/utils/helper.cpp）',
+            `project_id` BIGINT NOT NULL COMMENT '所属项目ID',
             FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON DELETE CASCADE,
             UNIQUE KEY `uk_project_path` (`project_id`, `path`) COMMENT '保证项目内路径唯一'
         );

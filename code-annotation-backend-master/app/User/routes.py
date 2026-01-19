@@ -3,37 +3,39 @@ from app.User import User
 
 from datetime import datetime, timedelta, timezone
 from werkzeug.security import check_password_hash, generate_password_hash
-import jwt, os
+import jwt, os, shutil
 
 from db.db_user import UserDB
 from db.db_project import ProjectDB
+from db.db_archTag import ArchTagDB
 from utils.token import token_required
 
 user_db = UserDB()
 project_db = ProjectDB()
+arch_tag_db = ArchTagDB()
 
 
 def init_user_data(user_id: int):
-    # === 检查用户的open、project、tmp目录是否存在，如果不存在则创建 ===
-    try:
-        user_dir = os.path.join(current_app.config["ROOT"], str(user_id))
-        if not os.path.exists(user_dir):
-            os.makedirs(user_dir)
+    # 创建用户目录
+    user_dir = os.path.join(current_app.config["ROOT"], "data", str(user_id))
+    if not os.path.exists(user_dir):
+        os.makedirs(user_dir)
 
-        project_dir = os.path.join(user_dir, "project")
-        if not os.path.exists(project_dir):
-            os.makedirs(project_dir)
+    # 创建用户的项目目录和open目录
+    project_dir = os.path.join(user_dir, "project")
+    if not os.path.exists(project_dir):
+        os.makedirs(project_dir)
 
-        tmp_dir = os.path.join(user_dir, "tmp")
-        if not os.path.exists(tmp_dir):
-            os.makedirs(tmp_dir)
+    open_dir = os.path.join(user_dir, "open")
+    if os.path.exists(open_dir):
+        print("WARNING:用户有之前没有清理的打开项目")
+        shutil.rmtree(open_dir)
+        os.makedirs(open_dir)
+        if not user_db.update_opened_project_id(user_id, 0):
+            print("ERROR:更新用户已打开项目失败")
 
-        open_dir = os.path.join(user_dir, "open")
-        if not os.path.exists(open_dir):
-            os.makedirs(open_dir)
-
-    except Exception as e:
-        raise e
+    # 创建用户默认标签
+    arch_tag_db.set_default_arch_tags(user_id)
 
 
 @User.route("/login", methods=["POST"])
@@ -65,19 +67,8 @@ def login():
         SECRET_KEY,
         algorithm="HS256",
     )
-    try:
-        init_user_data(user["id"])
-    except Exception as e:
-        return (
-            jsonify(
-                {
-                    "state": "fail",
-                    "description": "初始化用户数据失败",
-                    "rst": {"msg": str(e)},
-                }
-            ),
-            500,
-        )
+    init_user_data(user["id"])
+
     return (
         jsonify(
             {
@@ -94,7 +85,7 @@ def login():
     )
 
 
-@User.route("/api/register", methods=["POST"])
+@User.route("/register", methods=["POST"])
 def register():
     try:
         data = request.form
@@ -175,7 +166,7 @@ def register():
             jsonify(
                 {
                     "state": "fail",
-                    "description": "服务器内部错误",
+                    "description": "后端注册用户失败",
                     "rst": {},
                 }
             ),
@@ -183,7 +174,7 @@ def register():
         )
 
 
-@User.route("/api/modifyPassword", methods=["POST"])
+@User.route("/modify_password", methods=["POST"])
 @token_required
 def change_password(user_id):
     """
@@ -210,6 +201,8 @@ def change_password(user_id):
             400,
         )
 
+    # === 2. 验证密码是否正确 ===
+
     if len(new_password) < 6:
         return (
             jsonify(
@@ -222,7 +215,6 @@ def change_password(user_id):
             400,
         )
 
-    # === 2. 验证旧密码是否正确 ===
     user = user_db.get_user_by_id(user_id)
     if not user:
         return (
@@ -248,10 +240,33 @@ def change_password(user_id):
             400,
         )
 
+    if old_password == new_password:
+        return (
+            jsonify(
+                {
+                    "state": "fail",
+                    "description": "新密码不能与旧密码相同",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
+
     # === 3. 更新为新密码（哈希后）===
     new_password_hash = generate_password_hash(new_password)
 
-    user_db.update_password(user_id, new_password_hash)
+    if not user_db.update_password(user_id, new_password_hash):
+        print(f"后端数据库里密码修改失败, {user_id=}, {new_password_hash=}")
+        return (
+            jsonify(
+                {
+                    "state": "fail",
+                    "description": "后端数据库里密码修改失败",
+                    "rst": {},
+                }
+            ),
+            500,
+        )
 
     return (
         jsonify(

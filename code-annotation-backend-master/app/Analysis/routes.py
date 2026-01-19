@@ -1,21 +1,54 @@
 from app.Analysis import Analysis
-from flask import jsonify, request, session
+from flask import jsonify, request
 
-from db.db_project import ProjectDB
-from db.db_code import CodeDB
-from db.db_report import ReportDB
-from db.db_user import UserDB
-import rubbish.helper_file as helper_file
-
-
-from LLM.api import orchestrator
-import json
+# from db.db_project import ProjectDB
+# from db.db_code import CodeDB
+# from db.db_report import ReportDB
+# from db.db_user import UserDB
+# import rubbish.helper_file as helper_file
 
 
-code_DB = CodeDB()
-report_DB = ReportDB()
-project_DB = ProjectDB()
-user_DB = UserDB()
+# from LLM.api import orchestrator
+# import json
+
+
+# code_DB = CodeDB()
+# report_DB = ReportDB()
+# project_DB = ProjectDB()
+# user_DB = UserDB()
+
+from db.db_task import TaskDB
+
+task_db = TaskDB()
+
+
+@Analysis.route("/progress", methods=["GET"])
+def get_progress():
+    # === 1. 获取任务ID ===
+    task_id = request.args.get("task_id")
+
+    # === 2. 获取任务进度 ===
+    progress = task_db.get_task_progress(task_id)
+    if progress == None:
+        return (
+            jsonify({"state": "failed", "description": "任务不存在", "rst": None}),
+            404,
+        )
+
+    # === 3. 返回任务进度 ===
+    return (
+        jsonify(
+            {
+                "state": "success",
+                "description": "success",
+                "rst": {"progress": progress},
+            }
+        ),
+        200,
+    )
+
+
+# ----------------------------------------------------------------------------------------------------------------------
 
 
 def get_stats(line_details):

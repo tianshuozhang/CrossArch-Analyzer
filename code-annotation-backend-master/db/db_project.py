@@ -18,9 +18,7 @@ class ProjectDB(DBc):
             `name` VARCHAR(100) NOT NULL,
             `upload_time` DATETIME NOT NULL,
             `modified_time` DATETIME NOT NULL,
-            `place` VARCHAR(255) DEFAULT NULL,
             `processed` TINYINT NOT NULL DEFAULT 0,
-            `modified` TINYINT NOT NULL DEFAULT 0,
             `user_id` BIGINT NOT NULL,
             FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
         );
@@ -36,60 +34,32 @@ class ProjectDB(DBc):
             table_name="projects",
         )
 
-    def add_project(
-        self, name: str, place: str, processed: int, modified: int, user_id: int
-    ) -> int:
+    def add_project(self, name: str, user_id: int) -> int:
         """添加项目"""
         now = datetime.now()
-        sql = "INSERT INTO projects (name, upload_time, modified_time, place, processed, modified, user_id) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-        self.execute(sql, (name, now, now, place, processed, modified, user_id))
+        sql = "INSERT INTO projects (name, upload_time, modified_time, user_id) VALUES (%s, %s, %s, %s)"
+        self.execute(sql, (name, now, now, user_id))
         return self.cursor.lastrowid
-
-    def get_project_status(self, project_id: int) -> dict | None:
-        """根据项目 ID 查询项目状态"""
-        sql = "SELECT place, processed, modified FROM projects WHERE id = %s"
-        result = self.cursor.fetchone(sql, (project_id,))
-        if result:
-            return {
-                "place": result["place"],
-                "processed": result["processed"],
-                "modified": result["modified"],
-            }
-        return None
-
-    def update_project_status(
-        self,
-        project_id: int,
-        place: str = None,
-        processed: int = None,
-        modified: int = None,
-    ) -> bool:
-        """
-        更新项目状态（place, processed, modified）。
-        未传入的字段将保持不变。
-        """
-        updates = []
-        params = []
-
-        if place is not None:
-            updates.append("place = %s")
-            params.append(place)
-        if processed is not None:
-            updates.append("processed = %s")
-            params.append(processed)
-        if modified is not None:
-            updates.append("modified = %s")
-            params.append(modified)
-
-        if not updates:
-            return False  # 没有需要更新的内容
-        params.append(project_id)
-        sql = f"UPDATE projects SET {', '.join(updates)} WHERE id = %s"
-        self.execute(sql, tuple(params))
-        return self.cursor.rowcount > 0
 
     def get_project_name(self, project_id: int) -> str | None:
         """根据项目 ID 查询项目名称"""
         sql = "SELECT name FROM projects WHERE id = %s"
         result = self.cursor.fetchone(sql, (project_id,))
         return result["name"] if result else None
+
+    def get_project_processed(self, project_id: int) -> int | None:
+        """根据项目 ID 查询项目处理状态"""
+        sql = "SELECT processed FROM projects WHERE id = %s"
+        result = self.cursor.fetchone(sql, (project_id,))
+        return result["processed"] if result else None
+
+    def update_project_processed(self, project_id: int, processed: int) -> bool:
+        """更新项目处理状态"""
+        sql = "UPDATE projects SET processed = %s WHERE id = %s"
+        self.execute(sql, (processed, project_id))
+        return self.cursor.rowcount > 0
+
+    def get_project_list_by_user_id(self, user_id: int) -> list[dict]:
+        """根据用户 ID 查询项目列表"""
+        sql = "SELECT * FROM projects WHERE user_id = %s"
+        return self.cursor.fetchall(sql, (user_id,))
