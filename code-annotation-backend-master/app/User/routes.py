@@ -16,7 +16,7 @@ project_db = ProjectDB()
 def init_user_data(user_id: int):
     # === 检查用户的open、project、tmp目录是否存在，如果不存在则创建 ===
     try:
-        user_dir = os.path.join(current_app.config["USER_DIR"], str(user_id))
+        user_dir = os.path.join(current_app.config["ROOT"], str(user_id))
         if not os.path.exists(user_dir):
             os.makedirs(user_dir)
 

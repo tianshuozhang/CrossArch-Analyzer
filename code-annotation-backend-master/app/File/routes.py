@@ -88,26 +88,3 @@ def modify_file(user_id: int):
         f.write(modify_content)
         return jsonify({"state": "success", "description": "修改成功", "rst": {}}), 200
     return jsonify({"state": "fail", "description": "文件修改错误", "rst": {}}), 404
-
-
-@File.route("/delete", methods=["POST"])
-@token_required
-def delete_file(user_id: int):
-    # === 1. 获取要删除的文件id ===
-    file_id = request.form.get("file_id")
-
-    # === 2. 添加删除的修改记录 ===
-    project_id = user_db.get_user_open_project_id(user_id)
-    modify_db.add_modify_record("delete", file_id, "file", None, project_id)
-
-    # === 3. 返回成功 ===
-    return (
-        jsonify(
-            {
-                "state": "success",
-                "description": "删除成功",
-                "rst": {},
-            }
-        ),
-        200,
-    )

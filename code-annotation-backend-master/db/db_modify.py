@@ -81,3 +81,9 @@ class ModifyDB(DBc):
         """
         records = self.cursor.fetchall(sql, (file_id,))
         return records
+
+    def delete_modify_record_by_id(self, modify_record_id: int) -> bool:
+        """删除指定修改记录"""
+        sql = "DELETE FROM modify_records WHERE id = %s"
+        self.execute(sql, (modify_record_id,))
+        return self.cursor.rowcount > 0

@@ -18,9 +18,8 @@ class UserDB(DBc):
             `username` VARCHAR(50) NOT NULL UNIQUE,
             `password_hash` VARCHAR(255) NOT NULL,
             `created_time` DATETIME NOT NULL,
-            `tmp_project_id` BIGINT NOT NULL,
-            `open_project_id` BIGINT DEFAULT NULL,
-            FOREIGN KEY (`tmp_project_id`) REFERENCES `projects`(`id`) ON DELETE CASCADE
+            `tmp_project_id` BIGINT NULL,
+            `open_project_id` BIGINT DEFAULT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         """
         super().__init__(

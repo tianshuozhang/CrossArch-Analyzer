@@ -20,6 +20,7 @@ class DBc:
         port=3306,
         charset="utf8mb4",
         init_table_sql="CREATE TABLE IF NOT EXISTS feeds (_id INT AUTO_INCREMENT PRIMARY KEY, url VARCHAR(255), title VARCHAR(255));",
+        table_name="feeds",
     ):
         """
         初始化MySQL连接
@@ -45,7 +46,7 @@ class DBc:
                 autocommit=False,  # 关闭自动提交，使用手动提交
             )
             self.cursor = self.con.cursor()
-
+            self.table_name = table_name
             # 创建表
             if init_table_sql:
                 self.cursor.execute(init_table_sql)
@@ -75,26 +76,32 @@ class DBc:
     def insert(self, url, title):
         """插入数据"""
         # 注意：MySQL使用%s作为占位符，而不是?
-        self.execute("INSERT INTO feeds (url, title) VALUES (%s, %s)", (url, title))
+        self.execute(
+            f"INSERT INTO {self.table_name} (url, title) VALUES (%s, %s)", (url, title)
+        )
         return self.cursor.lastrowid  # PyMySQL也支持lastrowid获取自增ID
 
     def delete(self, id):
         """删除数据"""
         # 使用参数化查询防止SQL注入
-        self.execute("DELETE FROM feeds WHERE _id = %s", (id,))
+        self.execute(f"DELETE FROM {self.table_name} WHERE _id = %s", (id,))
 
     def selectall(self, where="1=1"):
         """查询所有数据"""
         # 注意：这里使用参数化查询
-        sql = f"SELECT * FROM feeds WHERE {where}"
+        sql = f"SELECT * FROM {self.table_name} WHERE {where}"
         self.cursor.execute(sql)
         return self.cursor.fetchall()
 
     def selectone(self, where="1=1"):
         """查询单条数据"""
-        sql = f"SELECT * FROM feeds WHERE {where}"
+        sql = f"SELECT * FROM {self.table_name} WHERE {where}"
         self.cursor.execute(sql)
         return self.cursor.fetchone()
+
+    def clear(self):
+        """清空表"""
+        self.execute(f"DELETE FROM {self.table_name}")
 
     def __enter__(self):
         """支持with语句的上下文管理器"""

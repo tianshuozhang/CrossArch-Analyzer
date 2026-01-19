@@ -6,6 +6,8 @@ from db.db_file import FileDB
 from db.db_modify import ModifyDB
 from db.db_user import UserDB
 
+from utils.dir import process_dir_structure
+
 user_db = UserDB()
 project_db = ProjectDB()
 file_db = FileDB()
@@ -53,6 +55,10 @@ def execute_close_project(user_id: int, project_id: int, project_status: dict) -
     open_dir = os.path.join(current_app.config["ROOT"], user_id, "open")
     shutil.rmtree(open_dir)
     os.makedirs(open_dir)
+    try:
+        process_dir_structure(open_dir)
+    except:
+        return False
     user_db.update_user_open_project_id(user_id, None)
 
     return True
@@ -83,6 +89,10 @@ def execute_save_tmp_project(user_id: int, project_id: int, project_status: dict
     tmp_dir = os.path.join(current_app.config["ROOT"], user_id, "tmp")
     shutil.rmtree(tmp_dir)
     os.makedirs(tmp_dir)
+    try:
+        process_dir_structure(tmp_dir)
+    except Exception as e:
+        return False
     user_db.update_user_tmp_project_id(user_id, None)
     return True
 
@@ -91,11 +101,11 @@ def before_open(project_id_to_open: int, user_id: int):
     user_opened_project_id = user_db.get_user_open_project_id(user_id)
 
     # === 1.如果要打开的项目和用户已打开的项目一样，直接返回 ===
-    if user_opened_project_id == project_id_to_open:
+    if user_opened_project_id is None or user_opened_project_id == project_id_to_open:
         return True
 
     # === 2.如果要打开的项目和用户已打开的项目不一样，需要关闭已打开的项目 ===
-    opened_project_status = project_db.get_project_status(opened_project_status)
+    opened_project_status = project_db.get_project_status(user_opened_project_id)
     if not execute_close_project(
         user_id, user_opened_project_id, opened_project_status
     ):
@@ -122,7 +132,10 @@ def before_unpack(project_id_to_modify: int, user_id: int, project_status: dict)
         "modified": 0,
     }:
         user_tmp_project_id = user_db.get_user_tmp_project_id(user_id)
-        if user_tmp_project_id != project_id_to_modify:
+        if (
+            user_tmp_project_id is not None
+            and user_tmp_project_id != project_id_to_modify
+        ):
             tmp_project_status = project_db.get_project_status(tmp_project_status)
             if not execute_save_tmp_project(
                 user_id, user_tmp_project_id, tmp_project_status

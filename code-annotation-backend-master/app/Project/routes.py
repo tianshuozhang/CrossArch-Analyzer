@@ -52,20 +52,19 @@ def upload_project(user_id: int):
     )
 
     # === 3. 处理目录结构并保存到指定位置 ===
-    open_dir = os.path.join(current_app.config["ROOT"], user_id, "open")
-    try:
-        process_dir_structure(open_dir)
-    except Exception as e:
+    if not before_open(project_id, user_id):
         return (
             jsonify(
                 {
                     "state": "fail",
                     "description": "处理open目录失败",
-                    "rst": {"msg": str(e)},
+                    "rst": {},
                 }
             ),
-            500,
+            400,
         )
+
+    open_dir = os.path.join(current_app.config["ROOT"], user_id, "open")
     project_root = os.path.join(open_dir, "content")
     if ext == "zip":
         try:

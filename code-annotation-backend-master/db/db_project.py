@@ -33,6 +33,7 @@ class ProjectDB(DBc):
             port=port,
             charset=charset,
             init_table_sql=self.init_table_sql,
+            table_name="projects",
         )
 
     def add_project(
