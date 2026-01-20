@@ -35,6 +35,7 @@ class FileDB(DBc):
             port=port,
             charset=charset,
             init_table_sql=self.init_table_sql,
+            table_name="files",
         )
 
     def add_file(self, name: str, project_id: int, path: str) -> int:

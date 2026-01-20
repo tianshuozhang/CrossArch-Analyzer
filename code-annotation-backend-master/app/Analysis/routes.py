@@ -4,7 +4,6 @@ import os, sys, zipfile, shutil, json
 
 sys.path.append(os.path.join(os.getcwd(), ".."))
 
-from LLM.api import orchestrator
 
 from utils.token import token_required
 from utils.file import execute_read_file_data
@@ -87,10 +86,12 @@ def ask(user_id: int):
             400,
         )
     opened_project_path = os.path.join(
-        current_app.config["ROOT"], "data", user_id, "open", "content"
+        current_app.config["ROOT"], "data", str(user_id), "open", "content"
     )
 
     # === 3. 启动分析任务 ===
+    from LLM.api import orchestrator
+
     answer = orchestrator.ask(question=question, project_root=opened_project_path)
 
     # === 4. 答案中，如果graph非空，那么保存graph到打开目录里 ===
@@ -103,7 +104,7 @@ def ask(user_id: int):
         graph_path = os.path.join(
             current_app.config["ROOT"],
             "data",
-            user_id,
+            str(user_id),
             "open",
             "graph",
             f"{graph_id}.json",
@@ -170,20 +171,26 @@ def analysis(user_id: int):
     # === 2. 将项目复制到analysis目录下，如果是当前项目，就复制，如果是其他项目，就解压 ===
     opened_project_id = user_db.get_opened_project_id(user_id=user_id)
     analysis_project_path = os.path.join(
-        current_app.config["ROOT"], "data", user_id, "analysis", f"{project_id}"
+        current_app.config["ROOT"], "data", str(user_id), "analysis", f"{project_id}"
     )
     if opened_project_id == project_id:
         project_path = os.path.join(
-            current_app.config["ROOT"], "data", user_id, "open", "content"
+            current_app.config["ROOT"], "data", str(user_id), "open", "content"
         )
         shutil.copytree(project_path, analysis_project_path)
     else:
         project_path = os.path.join(
-            current_app.config["ROOT"], "data", user_id, "project", f"{project_id}.zip"
+            current_app.config["ROOT"],
+            "data",
+            str(user_id),
+            "project",
+            f"{project_id}.zip",
         )
         shutil.unpack_archive(project_path, analysis_project_path)
 
     # === 3. 启动分析任务 ===
+    from LLM.api import orchestrator
+
     task_id = task_db.add_task(user_id)
     analysis_result = orchestrator.analyze(
         project_root=analysis_project_path,
@@ -192,7 +199,7 @@ def analysis(user_id: int):
 
     # === 4. 将文件分析报告保存到json里，将架构标记结果记录到数据库里，并删除这个分析任务 ===
     project_save_path = os.path.join(
-        current_app.config["ROOT"], "data", user_id, "project", f"{project_id}.zip"
+        current_app.config["ROOT"], "data", str(user_id), "project", f"{project_id}.zip"
     )
     with zipfile.ZipFile(project_save_path, "w") as zip_file:
         report_content = analysis_result["report"]
@@ -285,7 +292,7 @@ def report(user_id: int):
 
     # === 2. 获取文字项目报告 ===
     project_zip_path = os.path.join(
-        current_app.config["ROOT"], "data", user_id, "project", f"{project_id}.zip"
+        current_app.config["ROOT"], "data", str(user_id), "project", f"{project_id}.zip"
     )
     with zipfile.ZipFile(project_zip_path, "r") as zip_file:
         text_report_content = zip_file.read("report.json")

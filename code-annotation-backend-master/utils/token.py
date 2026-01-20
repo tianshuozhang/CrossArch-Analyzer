@@ -24,7 +24,6 @@ def token_required(f):
                 401,
             )
         SECRET_KEY = current_app.config["JWT_SECRET_KEY"]
-
         try:
             payload = jwt.decode(token[7:], SECRET_KEY, algorithms=["HS256"])
             user_id = payload["user_id"]

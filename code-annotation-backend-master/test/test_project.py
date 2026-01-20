@@ -1,4 +1,4 @@
-from test.helper import clean
+from test.db_helper import clean
 
 clean()
 

@@ -3,7 +3,15 @@ from datetime import datetime
 
 
 class VisualizationDataDB(DBc):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        host="localhost",
+        user="root",
+        password="123456",
+        database="classify_c",
+        port=3306,
+        charset="utf8mb4",
+    ):
         self.init_table_sql = """
         CREATE TABLE IF NOT EXISTS `visualization_data` (
             `id` BIGINT PRIMARY KEY AUTO_INCREMENT NOT NULL UNIQUE,
@@ -14,7 +22,16 @@ class VisualizationDataDB(DBc):
             FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON DELETE CASCADE
         );
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            port=port,
+            charset=charset,
+            init_table_sql=self.init_table_sql,
+            table_name="visualization_data",
+        )
 
     def add_visualization_data(
         self, natural_language_requirement: str, title: str, project_id: int

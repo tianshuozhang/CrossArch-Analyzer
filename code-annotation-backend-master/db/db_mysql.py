@@ -101,7 +101,7 @@ class DBc:
 
     def clear(self):
         """清空表"""
-        self.execute(f"DELETE FROM {self.table_name}")
+        self.execute(f"DROP TABLE {self.table_name}")
 
     def __enter__(self):
         """支持with语句的上下文管理器"""

@@ -17,7 +17,7 @@ class UserDB(DBc):
             `id` BIGINT PRIMARY KEY AUTO_INCREMENT NOT NULL UNIQUE,
             `username` VARCHAR(50) NOT NULL UNIQUE,
             `password_hash` VARCHAR(255) NOT NULL,
-            `opened_project_id` BIGINT,`
+            `opened_project_id` BIGINT,
             `created_time` DATETIME NOT NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         """
@@ -29,6 +29,7 @@ class UserDB(DBc):
             port=port,
             charset=charset,
             init_table_sql=self.init_table_sql,
+            table_name="users",
         )
 
     def add_user(self, username: str, password_hash: str) -> int:

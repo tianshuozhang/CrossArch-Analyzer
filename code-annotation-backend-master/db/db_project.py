@@ -18,7 +18,6 @@ class ProjectDB(DBc):
             `name` VARCHAR(100) NOT NULL,
             `upload_time` DATETIME NOT NULL,
             `modified_time` DATETIME NOT NULL,
-            `processed` TINYINT NOT NULL DEFAULT 0,
             `user_id` BIGINT NOT NULL,
             FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
         );
@@ -44,22 +43,18 @@ class ProjectDB(DBc):
     def get_project_name(self, project_id: int) -> str | None:
         """根据项目 ID 查询项目名称"""
         sql = "SELECT name FROM projects WHERE id = %s"
-        result = self.cursor.fetchone(sql, (project_id,))
+        self.cursor.execute(sql, (project_id,))
+        result = self.cursor.fetchone()
         return result["name"] if result else None
-
-    def get_project_processed(self, project_id: int) -> int | None:
-        """根据项目 ID 查询项目处理状态"""
-        sql = "SELECT processed FROM projects WHERE id = %s"
-        result = self.cursor.fetchone(sql, (project_id,))
-        return result["processed"] if result else None
-
-    def update_project_processed(self, project_id: int, processed: int) -> bool:
-        """更新项目处理状态"""
-        sql = "UPDATE projects SET processed = %s WHERE id = %s"
-        self.execute(sql, (processed, project_id))
-        return self.cursor.rowcount > 0
 
     def get_project_list_by_user_id(self, user_id: int) -> list[dict]:
         """根据用户 ID 查询项目列表"""
         sql = "SELECT * FROM projects WHERE user_id = %s"
-        return self.cursor.fetchall(sql, (user_id,))
+        self.cursor.execute(sql, (user_id,))
+        return self.cursor.fetchall()
+
+    def delete_project_by_id(self, project_id: int) -> bool:
+        """根据项目 ID 删除项目"""
+        sql = "DELETE FROM projects WHERE id = %s"
+        self.execute(sql, (project_id,))
+        return self.cursor.rowcount > 0

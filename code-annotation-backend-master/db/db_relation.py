@@ -3,7 +3,15 @@ import re
 
 
 class RelationDB(DBc):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        host="localhost",
+        user="root",
+        password="123456",
+        database="classify_c",
+        port=3306,
+        charset="utf8mb4",
+    ):
         self.init_table_sql = """
         CREATE TABLE IF NOT EXISTS `snippet_arch_tag_relations` (
             `start` BIGINT NOT NULL,
@@ -14,14 +22,22 @@ class RelationDB(DBc):
             `riscv` TINYINT NOT NULL default 0,
             `loong` TINYINT NOT NULL default 0,
             `mips` TINYINT NOT NULL default 0,
-            `powerPC` TINYINT NOT NULL default 0,
+            `powerpc` TINYINT NOT NULL default 0,
             `x86` TINYINT NOT NULL  default 0,
-            PRIMARY KEY (`file_id`, `project_id`),
             FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON DELETE CASCADE,
             FOREIGN KEY (`file_id`) REFERENCES `files`(`id`) ON DELETE CASCADE
         );
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            port=port,
+            charset=charset,
+            init_table_sql=self.init_table_sql,
+            table_name="snippet_arch_tag_relations",
+        )
 
     def add_relation(self, start, end, arch_names: list[str], project_id, file_id):
         """添加关系"""

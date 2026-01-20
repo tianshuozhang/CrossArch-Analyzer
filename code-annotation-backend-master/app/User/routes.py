@@ -33,7 +33,8 @@ def init_user_data(user_id: int):
         os.makedirs(open_dir)
         if not user_db.update_opened_project_id(user_id, 0):
             print("ERROR:更新用户已打开项目失败")
-
+    else:
+        os.makedirs(open_dir)
     # 创建用户默认标签
     arch_tag_db.set_default_arch_tags(user_id)
 
@@ -228,24 +229,24 @@ def change_password(user_id):
             404,
         )
 
-    if not check_password_hash(user["password_hash"], old_password):
-        return (
-            jsonify(
-                {
-                    "state": "fail",
-                    "description": "旧密码错误",
-                    "rst": {},
-                }
-            ),
-            400,
-        )
-
     if old_password == new_password:
         return (
             jsonify(
                 {
                     "state": "fail",
                     "description": "新密码不能与旧密码相同",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
+
+    if not check_password_hash(user["password_hash"], old_password):
+        return (
+            jsonify(
+                {
+                    "state": "fail",
+                    "description": "旧密码错误",
                     "rst": {},
                 }
             ),

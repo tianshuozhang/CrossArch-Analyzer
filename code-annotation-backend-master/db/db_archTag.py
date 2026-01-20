@@ -1,9 +1,16 @@
 from db.db_mysql import DBc
 
 
-# TODO:这个可以保留，暂时还没改
 class ArchTagDB(DBc):
-    def __init__(self, *args, **kwargs):
+    def __init__(
+        self,
+        host="localhost",
+        user="root",
+        password="123456",
+        database="classify_c",
+        port=3306,
+        charset="utf8mb4",
+    ):
         self.init_table_sql = """
         CREATE TABLE IF NOT EXISTS `arch_tags` (
             `id` BIGINT PRIMARY KEY AUTO_INCREMENT NOT NULL UNIQUE,
@@ -14,14 +21,23 @@ class ArchTagDB(DBc):
             UNIQUE KEY `unique_text_per_user` (`text`, `user_id`)
         );
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(
+            host=host,
+            user=user,
+            password=password,
+            database=database,
+            port=port,
+            charset=charset,
+            init_table_sql=self.init_table_sql,
+            table_name="arch_tags",
+        )
         self.default_arch_tags = [
-            {"text": "x86", "color": "#77BA67"},
             {"text": "arm", "color": "#CCDA36"},
-            {"text": "mips", "color": "#EA4C89"},
-            {"text": "powerPC", "color": "#EA4C89"},
-            {"text": "loongISA", "color": "#E7199F"},
             {"text": "riscv", "color": "#1BCC59"},
+            {"text": "loong", "color": "#E7199F"},
+            {"text": "mips", "color": "#EA4C89"},
+            {"text": "powerpc", "color": "#EA4C89"},
+            {"text": "x86", "color": "#77BA67"},
         ]
 
     def set_default_arch_tags(self, user_id):

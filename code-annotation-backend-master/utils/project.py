@@ -1,4 +1,4 @@
-import os, shutil, zipfile
+import os, shutil, zipfile, json
 from flask import current_app
 
 from db.db_project import ProjectDB
@@ -13,30 +13,20 @@ file_db = FileDB()
 def execute_close_project(user_id: int, project_id: int):
     # === 1. 把项目保存到指定位置 ===
     target_project_path = os.path.join(
-        current_app.config["ROOT"], "data", user_id, "project", f"{project_id}"
+        current_app.config["ROOT"], "data", str(user_id), "project", f"{project_id}"
     )
-    open_project_path = os.path.join(current_app.config["ROOT"], user_id, "open")
+    open_project_path = os.path.join(current_app.config["ROOT"], str(user_id), "open")
     shutil.make_archive(
         base_name=target_project_path,
         root_dir=open_project_path,
         format="zip",
     )
     # === 2. 清理open目录，更新用户的open_project_id，并返回成功 ===
-    open_dir = os.path.join(current_app.config["ROOT"], user_id, "open")
+    open_dir = os.path.join(current_app.config["ROOT"], "data", str(user_id), "open")
     shutil.rmtree(open_dir)
     os.makedirs(open_dir)
     if not user_db.update_opened_project_id(user_id, 0):
         print("ERROR:更新用户已打开项目失败")
-
-
-def prepare_open_dir(user_id: int):
-    open_dir = os.path.join(current_app.config["ROOT"], "data", user_id, "open")
-    try:
-        shutil.rmtree(open_dir)
-        os.makedirs(os.path.join(open_dir, "content"))
-        os.makedirs(os.path.join(open_dir, "graph"))
-    except Exception as e:
-        print(f"后端错误：准备open失败， {e.args}")
 
 
 def execute_open_project(user_id: int, project_id: int):
@@ -51,23 +41,11 @@ def execute_open_project(user_id: int, project_id: int):
 
     # === 3. 打开项目 ===
     save_project_path = os.path.join(
-        current_app.config["ROOT"], "data", user_id, "project", f"{project_id}.zip"
+        current_app.config["ROOT"], "data", str(user_id), "project", f"{project_id}.zip"
     )
-    project_processed = project_db.get_project_processed(project_id)
-    if project_processed is None:
-        raise ValueError("项目不存在")
-    if project_processed:
-        target_project_path = os.path.join(
-            current_app.config["ROOT"], "data", user_id, "open"
-        )
-    else:
-        target_project_path = os.path.join(
-            current_app.config["ROOT"], "data", user_id, "open", "content"
-        )
-        if os.path.exists(target_project_path):
-            raise ValueError("用户的open目录没有清理干净")
-        prepare_open_dir(user_id)
-        project_db.update_project_processed(project_id, 1)
+    target_project_path = os.path.join(
+        current_app.config["ROOT"], "data", str(user_id), "open"
+    )
 
     shutil.unpack_archive(save_project_path, target_project_path)
     # === 4. 更新用户已打开项目 ===
@@ -140,3 +118,8 @@ def get_file_tree(zip_path: str) -> list:
         return result
 
     return dict_to_tree(root)
+
+
+def save_file_tree(zip_path: str, tree: list):
+    with zipfile.ZipFile(zip_path, "a") as zip_file:
+        zip_file.writestr("tree.json", json.dumps(tree, indent=2))
