@@ -35,3 +35,8 @@ class TaskDB(DBc):
         self.cursor.execute(sql, (task_id,))
         result = self.cursor.fetchone()
         return result["progress"] if result else None
+
+    def delete_task(self, task_id):
+        """删除任务"""
+        sql = "DELETE FROM tasks WHERE id = %s"
+        self.execute(sql, (task_id,))

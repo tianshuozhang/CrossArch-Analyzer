@@ -3,13 +3,11 @@ from flask import current_app
 
 from db.db_project import ProjectDB
 from db.db_file import FileDB
-from db._db_modify import ModifyDB
 from db.db_user import UserDB
 
 user_db = UserDB()
 project_db = ProjectDB()
 file_db = FileDB()
-modiy_db = ModifyDB()
 
 
 def execute_close_project(user_id: int, project_id: int):

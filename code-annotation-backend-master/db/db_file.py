@@ -22,6 +22,7 @@ class FileDB(DBc):
             `modify_time` DATETIME NOT NULL COMMENT '最后修改时间',
             `path` VARCHAR(512) NOT NULL COMMENT '完整路径（如src/utils/helper.cpp）',
             `project_id` BIGINT NOT NULL COMMENT '所属项目ID',
+            `tmp_count` BIGINT NOT NULL DEFAULT 0 COMMENT '临时计数',
             FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON DELETE CASCADE,
             UNIQUE KEY `uk_project_path` (`project_id`, `path`) COMMENT '保证项目内路径唯一'
         );
@@ -92,3 +93,23 @@ class FileDB(DBc):
         """物理删除文件记录（适配新表）"""
         sql = "DELETE FROM files WHERE id = %s"
         self.execute(sql, (file_id,))
+
+    def get_file_tmp_count_by_id(self, file_id: int) -> int:
+        """获取指定文件ID的临时计数"""
+        sql = "SELECT tmp_count FROM files WHERE id = %s"
+        self.cursor.execute(sql, (file_id,))
+        result = self.cursor.fetchone()
+        return result["tmp_count"] if result else 0
+
+    def update_file_tmp_count_by_id(self, file_id: int, new_count: int) -> bool:
+        """更新指定文件ID的临时计数"""
+        sql = "UPDATE files SET tmp_count = %s WHERE id = %s"
+        self.execute(sql, (new_count, file_id))
+        return self.cursor.rowcount > 0
+
+    def update_file_modify_time_by_id(self, file_id: int) -> bool:
+        """更新指定文件ID的修改时间"""
+        new_time = datetime.now()
+        sql = "UPDATE files SET modify_time = %s WHERE id = %s"
+        self.execute(sql, (new_time, file_id))
+        return self.cursor.rowcount > 0

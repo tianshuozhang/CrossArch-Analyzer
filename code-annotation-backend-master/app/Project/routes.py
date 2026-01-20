@@ -6,27 +6,19 @@ import os, datetime, shutil, zipfile, json
 from app.Project import Project
 from db.db_project import ProjectDB
 from db.db_user import UserDB
-from db._db_modify import ModifyDB
 from db.db_file import FileDB
 from utils.token import token_required
 from utils.name import sanitize_project_name
-from utils.dir import process_dir_structure
 from utils.project import (
     execute_open_project,
     register_project_files,
     get_file_tree,
-    get_file_tree_from_db,
-    before_open,
-    before_unpack,
-    apply_modifies,
     execute_close_project,
 )
-from utils.modify import register_modify_data
 
 file_db = FileDB()
 project_db = ProjectDB()
 user_db = UserDB()
-modify_db = ModifyDB()
 
 
 def _register_project_and_save(

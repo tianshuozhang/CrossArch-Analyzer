@@ -1,0 +1,80 @@
+from flask import request, jsonify, current_app
+import os, zipfile, json
+
+from app.Graph import Graph
+from utils.token import token_required
+
+from db.db_visualData import VisualizationDataDB
+from db.db_user import UserDB
+
+user_db = UserDB()
+graph_db = VisualizationDataDB()
+
+
+@Graph.route("/get_list", methods=["POST"])
+@token_required
+def get_list(user_id: int):
+    # === 1. 获取项目ID ===
+    project_id = request.form.get("project_id")
+    if not project_id:
+        return (
+            jsonify({"state": "fail", "description": "没有提供项目ID", "rst": {}}),
+            400,
+        )
+
+    # === 2. 读取图数据的title并返回 ===
+    graphs = graph_db.get_all_visualization_data_title_id_list(project_id)
+    return (
+        jsonify(
+            {
+                "state": "success",
+                "description": "成功",
+                "rst": {"graphs": graphs},
+            }
+        ),
+        200,
+    )
+
+
+@Graph.route("/get_graph", methods=["POST"])
+@token_required
+def get_graph(user_id: int):
+    # === 1. 获取用户要打开的图ID ===
+    graph_id = request.form.get("graph_id")
+
+    # === 2. 读取图文件数据 ===
+    opened_project_id = user_db.get_opened_project_id(user_id)
+    if not opened_project_id:
+        return (
+            jsonify(
+                {
+                    "state": "fail",
+                    "description": "没有打开的项目",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
+    project_path = os.path.join(
+        current_app.config["ROOT"],
+        "data",
+        str(user_id),
+        "project",
+        f"{opened_project_id}.zip",
+    )
+    with zipfile.ZipFile(project_path, "r") as zip_file:
+        graph_path = os.path.join("graph", f"{graph_id}.json")
+        graph_data = json.loads(zip_file.read(graph_path).decode("utf-8"))
+
+    # === 3. 返回图数据 ===
+
+    return (
+        jsonify(
+            {
+                "state": "success",
+                "description": "成功",
+                "rst": {"graph_data": graph_data},
+            }
+        ),
+        200,
+    )

@@ -1,6 +1,7 @@
 from db.db_mysql import DBc
 
 
+# TODO:这个可以保留，暂时还没改
 class ArchTagDB(DBc):
     def __init__(self, *args, **kwargs):
         self.init_table_sql = """
@@ -43,8 +44,8 @@ class ArchTagDB(DBc):
         result = self.cursor.fetchone()
         return result["id"] if result else None
 
-    def getArchTagsByUserId(self, user_id):
-        """获取用户的所有标签"""
-        sql = "SELECT * FROM arch_tags WHERE user_id = %s ORDER BY text"
-        self.cursor.execute(sql, (user_id,))
-        return self.cursor.fetchall()
+    def update_arch_tag(self, text, color) -> bool:
+        """更新架构标签"""
+        sql = "UPDATE arch_tags SET color = %s WHERE text = %s"
+        self.execute(sql, (color, text))
+        return self.cursor.rowcount > 0

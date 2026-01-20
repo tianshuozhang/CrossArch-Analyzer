@@ -1,13 +1,4 @@
 # coding=UTF-8
-import os
-import sys
-
-os.chdir("../")
-print(os.getcwd())
-sys.path.append(os.getcwd())
-sys.path.append(os.path.join(os.getcwd(), "LLM"))
-sys.path.append(os.path.join(os.getcwd(), "LLM/core"))
-
 from flask import Flask
 from app import app
 
