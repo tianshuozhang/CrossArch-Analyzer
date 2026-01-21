@@ -1,5 +1,5 @@
 from app.Analysis import Analysis
-from flask import jsonify, request, current_app, send_file
+from flask import jsonify, request, send_file
 import os, sys, zipfile, shutil, json
 
 sys.path.append(os.path.join(os.getcwd(), ".."))
@@ -7,6 +7,9 @@ sys.path.append(os.path.join(os.getcwd(), ".."))
 
 from utils.token import token_required
 from utils.file import execute_read_file_data
+from utils.path import *
+from utils.zip import *
+from utils.relation import relations_to_arch_line_relations
 
 from db.db_user import UserDB
 from db.db_task import TaskDB
@@ -26,10 +29,10 @@ graph_db = VisualizationDataDB()
 def get_progress(user_id: int):
     # === 1. 获取任务ID ===
     task_id = request.args.get("task_id")
-
+    task_id = int(task_id)
     # === 2. 获取任务进度 ===
     progress = task_db.get_task_progress(task_id)
-    if progress == None:
+    if progress is None:
         return (
             jsonify({"state": "failed", "description": "任务不存在", "rst": None}),
             404,
@@ -85,14 +88,13 @@ def ask(user_id: int):
             ),
             400,
         )
-    opened_project_path = os.path.join(
-        current_app.config["ROOT"], "data", str(user_id), "open", "content"
-    )
 
     # === 3. 启动分析任务 ===
     from LLM.api import orchestrator
 
-    answer = orchestrator.ask(question=question, project_root=opened_project_path)
+    answer = orchestrator.ask(
+        question=question, project_root=path_dir_open_content(user_id)
+    )
 
     # === 4. 答案中，如果graph非空，那么保存graph到打开目录里 ===
     if answer["graph"]:
@@ -101,15 +103,9 @@ def ask(user_id: int):
             title=answer["graph"]["title"],
             project_id=opened_project_id,
         )
-        graph_path = os.path.join(
-            current_app.config["ROOT"],
-            "data",
-            str(user_id),
-            "open",
-            "graph",
-            f"{graph_id}.json",
-        )
-        with open(graph_path, "w") as f:
+        with open(
+            path_file_open_graph_item(user_id=user_id, graph_id=graph_id), "w"
+        ) as f:
             json.dump(answer["graph"]["option"], f)
 
     # === 5. 如果打开文件路径不为空，那么读出打开文件的数据 ===
@@ -154,8 +150,8 @@ def analysis(user_id: int):
             jsonify({"state": "failed", "description": "请提供项目ID", "rst": None}),
             400,
         )
-
-    cur_open_file_path = request.form.get("open_file_path")
+    project_id = int(project_id)
+    cur_open_file_path = request.form.get("file_path")
     if cur_open_file_path is None:
         return (
             jsonify(
@@ -170,38 +166,26 @@ def analysis(user_id: int):
 
     # === 2. 将项目复制到analysis目录下，如果是当前项目，就复制，如果是其他项目，就解压 ===
     opened_project_id = user_db.get_opened_project_id(user_id=user_id)
-    analysis_project_path = os.path.join(
-        current_app.config["ROOT"], "data", str(user_id), "analysis", f"{project_id}"
-    )
+    analysis_project_root = path_dir_analysis_project(user_id, project_id)
     if opened_project_id == project_id:
-        project_path = os.path.join(
-            current_app.config["ROOT"], "data", str(user_id), "open", "content"
-        )
-        shutil.copytree(project_path, analysis_project_path)
+        shutil.copytree(path_dir_open_content(user_id=user_id), analysis_project_root)
     else:
-        project_path = os.path.join(
-            current_app.config["ROOT"],
-            "data",
-            str(user_id),
-            "project",
-            f"{project_id}.zip",
+        zip_extract_file_to(
+            src_zip_path=path_file_save_zip(user_id, project_id),
+            dst_dir_path=analysis_project_root,
         )
-        shutil.unpack_archive(project_path, analysis_project_path)
 
     # === 3. 启动分析任务 ===
     from LLM.api import orchestrator
 
     task_id = task_db.add_task(user_id)
     analysis_result = orchestrator.analyze(
-        project_root=analysis_project_path,
+        project_root=analysis_project_root,
         task_id=task_id,
     )
 
     # === 4. 将文件分析报告保存到json里，将架构标记结果记录到数据库里，并删除这个分析任务 ===
-    project_save_path = os.path.join(
-        current_app.config["ROOT"], "data", str(user_id), "project", f"{project_id}.zip"
-    )
-    with zipfile.ZipFile(project_save_path, "w") as zip_file:
+    with zipfile.ZipFile(path_dir_save(user_id=user_id), "w") as zip_file:
         report_content = analysis_result["report"]
         zip_file.writestr("report.json", report_content)
 
@@ -286,28 +270,31 @@ def report(user_id: int):
     project_id = request.form.get("project_id")
     if not project_id:
         return (
-            jsonify({"state": "failed", "description": "请提供项目ID", "rst": None}),
+            jsonify({"state": "failed", "description": "请提供项目ID", "rst": {}}),
             400,
         )
+    project_id = int(project_id)
 
     # === 2. 获取文字项目报告 ===
-    project_zip_path = os.path.join(
-        current_app.config["ROOT"], "data", str(user_id), "project", f"{project_id}.zip"
-    )
-    with zipfile.ZipFile(project_zip_path, "r") as zip_file:
-        text_report_content = zip_file.read("report.json")
+    try:
+        text_report_content = zip_read_file_from_zip(
+            path_file_save_zip(user_id=user_id, project_id=project_id), "report.json"
+        )
+    except:
+        return (
+            jsonify(
+                {
+                    "state": "failed",
+                    "description": "没有找到项目报告",
+                    "rst": {},
+                }
+            ),
+            404,
+        )
 
     # === 3. 获取架构标注报告 ===
     line_archs_relations = relation_db.get_relations_by_project_id(project_id)
-    arch_lines_relations = {}
-    for line_arch_relation in line_archs_relations:
-        arch_names = line_arch_relation["arch_names"]
-        start, end = line_arch_relation["start"], line_arch_relation["end"]
-        start, end = int(start), int(end)
-        for arch_name in arch_names:
-            if arch_name not in arch_lines_relations:
-                arch_lines_relations[arch_name] = []
-            arch_lines_relations[arch_name] += list(range(start, end + 1))
+    arch_lines_relations = relations_to_arch_line_relations(line_archs_relations)
     arch_report_content = json.dumps(arch_lines_relations, indent=2)
 
     # === 4. 拼接报告 ===

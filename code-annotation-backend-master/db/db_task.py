@@ -33,27 +33,27 @@ class TaskDB(DBc):
             table_name="tasks",
         )
 
-    def add_task(self, project_id) -> int:
+    def add_task(self, project_id: int) -> int:
         """创建任务"""
         now = datetime.now()
         sql = "INSERT INTO tasks (project_id, progress, created_at, updated_at) VALUES (%s, 0, %s, %s)"
         self.execute(sql, (project_id, now, now))
         return self.cursor.lastrowid
 
-    def update_progress(self, task_id, progress):
+    def update_progress(self, task_id: int, progress: int):
         """更新进度"""
         now = datetime.now()
         sql = "UPDATE tasks SET progress = %s, updated_at = %s WHERE id = %s"
         self.execute(sql, (progress, now, task_id))
 
-    def get_task_progress(self, task_id):
+    def get_task_progress(self, task_id: int) -> int | None:
         """获取任务进度"""
         sql = "SELECT progress FROM tasks WHERE id = %s"
-        self.cursor.execute(sql, (task_id,))
+        self.execute(sql, (task_id,))
         result = self.cursor.fetchone()
         return result["progress"] if result else None
 
-    def delete_task(self, task_id):
+    def delete_task(self, task_id: int):
         """删除任务"""
         sql = "DELETE FROM tasks WHERE id = %s"
         self.execute(sql, (task_id,))

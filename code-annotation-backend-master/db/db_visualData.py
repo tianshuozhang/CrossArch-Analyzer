@@ -45,6 +45,6 @@ class VisualizationDataDB(DBc):
     def get_all_visualization_data_title_id_list(self, project_id: int) -> list[dict]:
         """获取所有可视化数据"""
         sql = "SELECT title FROM visualization_data WHERE project_id = %s ORDER BY generated_at DESC"
-        self.cursor.execute(sql, (project_id,))
+        self.execute(sql, (project_id,))
         results = self.cursor.fetchall()
         return [{"title": result["title"], "id": result["id"]} for result in results]

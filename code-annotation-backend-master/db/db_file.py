@@ -57,7 +57,7 @@ class FileDB(DBc):
     def get_file_id_by_file_path(self, file_path: str) -> int | None:
         """根据文件路径获取文件ID"""
         sql = "SELECT id FROM files WHERE path = %s"
-        self.cursor.execute(sql, (file_path))
+        self.execute(sql, (file_path))
         result = self.cursor.fetchone()
         return result["id"] if result else None
 
@@ -67,27 +67,27 @@ class FileDB(DBc):
         """获取指定项目下，路径以path_prefix开头的所有文件/目录记录"""
         sql = "SELECT * FROM files WHERE project_id = %s AND path LIKE %s ORDER BY path"
         like_pattern = f"{path_prefix}%"
-        self.cursor.execute(sql, (project_id, like_pattern))
+        self.execute(sql, (project_id, like_pattern))
         return self.cursor.fetchall()
 
     def get_file_path_by_id(self, file_id: int) -> Optional[str]:
         """根据文件ID获取文件路径"""
         sql = "SELECT path FROM files WHERE id = %s"
-        self.cursor.execute(sql, (file_id,))
+        self.execute(sql, (file_id,))
         result = self.cursor.fetchone()
         return result["path"] if result else None
 
     def get_file_by_id(self, file_id: int) -> Optional[Dict]:
         """根据文件ID获取单条文件记录"""
         sql = "SELECT * FROM files WHERE id = %s"
-        self.cursor.execute(sql, (file_id,))
+        self.execute(sql, (file_id,))
         result = self.cursor.fetchone()
         return result if result else None
 
     def get_files_by_project_id(self, project_id: int) -> List[Dict]:
         """获取指定项目下的所有文件/目录记录（按路径排序）"""
         sql = "SELECT * FROM files WHERE project_id = %s ORDER BY path"
-        self.cursor.execute(sql, (project_id,))
+        self.execute(sql, (project_id,))
         return self.cursor.fetchall()
 
     def delete_file(self, file_id: int):
@@ -98,7 +98,7 @@ class FileDB(DBc):
     def get_file_tmp_count_by_id(self, file_id: int) -> int:
         """获取指定文件ID的临时计数"""
         sql = "SELECT tmp_count FROM files WHERE id = %s"
-        self.cursor.execute(sql, (file_id,))
+        self.execute(sql, (file_id,))
         result = self.cursor.fetchone()
         return result["tmp_count"] if result else 0
 

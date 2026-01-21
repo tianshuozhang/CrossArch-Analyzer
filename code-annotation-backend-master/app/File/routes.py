@@ -1,13 +1,13 @@
-from flask import request, jsonify, current_app
+from flask import request, jsonify
 import os, shutil, json
-from datetime import datetime
 
 from app.File import File
 from db.db_file import FileDB
 from db.db_user import UserDB
 from db.db_relation import RelationDB
 from utils.token import token_required
-from utils.file import execute_read_file_data
+from utils.file import execute_read_file_data, execute_save_file_data
+from utils.path import *
 
 file_db = FileDB()
 user_db = UserDB()
@@ -55,12 +55,6 @@ def save_file(user_id: int):
             jsonify({"state": "fail", "description": "没有提供文件路径", "rst": {}}),
             404,
         )
-    file_id = file_db.get_file_id_by_file_path(rela_file_path)
-    if not file_id:
-        return (
-            jsonify({"state": "fail", "description": "没有找到该文件", "rst": {}}),
-            404,
-        )
 
     file_content = request.form.get("file_content")
     if not file_content:
@@ -70,72 +64,20 @@ def save_file(user_id: int):
             ),
             404,
         )
-    # TODO:这里应该是不必要的
-    file_tag = request.form.get("file_tag")
-    if not file_tag:
+    line_arch_tags = request.form.get("line_arch_tags")
+    if line_arch_tags is None:
         return (
-            jsonify(
-                {
-                    "state": "fail",
-                    "description": "没有提供文件标签，如果当前没有文件标签，那么应该提供一个空的",
-                    "rst": {},
-                }
-            ),
+            jsonify({"state": "fail", "description": "没有提供文件行标签", "rst": {}}),
             404,
         )
-    # === 2. 删除文件原来的relation，然后重新添加 ===
-    opened_project_id = user_db.get_opened_project_id(user_id)
-    if not opened_project_id:
-        return (
-            jsonify(
-                {
-                    "state": "fail",
-                    "description": "没有打开项目，请先打开项目",
-                    "rst": {},
-                }
-            ),
-            404,
-        )
-    if not relation_db.delete_relations_by_file_id(file_id, opened_project_id):
-        print("删除文件关系失败")
-    for item in json.loads(file_tag):
-        relation_db.add_relation(
-            item["start"],
-            item["end"],
-            item["arch_names"],
-            opened_project_id,
-            file_id,
-        )
+    line_arch_tags = json.loads(line_arch_tags)
 
-    # === 2. 找到该文件对应的临时目录，保存内容到对应位置 ===
-    temp_dir = os.path.join(
-        current_app.config["ROOT"], "data", str(user_id), "tmp", str(file_id)
-    )
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
-
-    tmp_count = file_db.get_file_tmp_count_by_id(file_id)
-    if not file_db.update_file_tmp_count_by_id(file_id, tmp_count + 1):
-        print("更新文件临时计数失败")
-    tmp_file_name = str(tmp_count + 1) + ".tmp"
-    with open(os.path.join(temp_dir, tmp_file_name), "w") as f:
-        f.write(file_content)
-
-    # === 3. 保存到打开的对应文件里，并修改文件的修改时间 ===
-    file_path = os.path.join(
-        current_app.config["ROOT"],
-        "data",
-        str(user_id),
-        "open",
-        "content",
-        rela_file_path,
-    )
-    with open(file_path, "w") as f:
-        f.write(file_content)
-    if not file_db.update_file_modify_time_by_id(file_id):
-        print("更新文件修改时间失败")
-
-    # === 4. 返回成功 ===
+    # === 2. 执行保存文件 ===
+    if not execute_save_file_data(
+        user_id, rela_file_path, file_content, line_arch_tags
+    ):
+        return jsonify({"state": "fail", "description": "保存文件内容失败", "rst": {}})
+    # === 3. 返回成功 ===
     return jsonify({"state": "success", "description": "成功", "rst": {}}), 200
 
 
@@ -158,11 +100,10 @@ def cancel_change_file(user_id: int):
         )
 
     # === 2. 找到该文件对应的上一个临时文件路径 ===
-    temp_dir = os.path.join(
-        current_app.config["ROOT"], "data", str(user_id), "tmp", str(file_id)
-    )
     tmp_file_name = file_db.get_file_tmp_count_by_id(file_id)
-    tmp_file_path = os.path.join(temp_dir, str(tmp_file_name) + ".tmp")
+    tmp_file_path = os.path.join(
+        path_dir_tmp_file(user_id, file_id), str(tmp_file_name) + ".tmp"
+    )
     if not os.path.exists(tmp_file_path):
         return (
             jsonify(
@@ -183,45 +124,68 @@ def cancel_change_file(user_id: int):
         print("更新文件临时计数失败")
 
     # === 4. 将内容写入打开的文件里
-    file_path = os.path.join(
-        current_app.config["ROOT"],
-        "data",
-        str(user_id),
-        "open",
-        "content",
-        rela_file_path,
-    )
-    with open(file_path, "w") as f:
+    with open(path_file_open_file_abs(user_id, rela_file_path), "w") as f:
         f.write(file_content)
 
     # === 5. 返回成功 ===
-    return jsonify({"state": "success", "description": "成功", "rst": {}}), 200
+    return (
+        jsonify(
+            {
+                "state": "success",
+                "description": "成功",
+                "rst": {"file_content": file_content},
+            }
+        ),
+        200,
+    )
 
 
 @File.route("/close", methods=["POST"])
 @token_required
 def close_file(user_id: int):
-    # === 1. 获取要关闭的文件路径，找到文件的ID ===
+    # === 1. 解析前端参数file_path, file_content ===
     rela_file_path = request.form.get("file_path")
     if not rela_file_path:
         return (
             jsonify({"state": "fail", "description": "没有提供文件路径", "rst": {}}),
             404,
         )
+    file_content = request.form.get("file_content")
+    if file_content is None:
+        return (
+            jsonify(
+                {
+                    "state": "fail",
+                    "description": "没有提供要保存文件内容，如果文件内容为空，那么需要提供一个空的字符串",
+                    "rst": {},
+                }
+            ),
+            404,
+        )
+    line_arch_tags = request.form.get("line_arch_tags")
+    if line_arch_tags is None:
+        return (
+            jsonify({"state": "fail", "description": "没有提供文件行标签", "rst": {}}),
+            404,
+        )
+    line_arch_tags = json.loads(line_arch_tags)
 
+    # === 2. 执行保存文件 ===
+    if not execute_save_file_data(
+        user_id, rela_file_path, file_content, line_arch_tags
+    ):
+        return jsonify({"state": "fail", "description": "保存文件内容失败", "rst": {}})
+
+    # === 3. 删除该文件对应的临时文件目录，并且清零临时文件计数 ===
     file_id = file_db.get_file_id_by_file_path(rela_file_path)
     if not file_id:
         return (
             jsonify({"state": "fail", "description": "没有找到该文件", "rst": {}}),
             404,
         )
-
-    # === 2. 删除该文件对应的临时文件目录，并且清零临时文件计数 ===
-    temp_dir = os.path.join(
-        current_app.config["ROOT"], "data", str(user_id), "tmp", str(file_id)
-    )
-    if os.path.exists(temp_dir):
-        shutil.rmtree(temp_dir)
+    temp_file_dir = path_dir_tmp_file(user_id, file_id)
+    if os.path.exists(temp_file_dir):
+        shutil.rmtree(temp_file_dir)
 
     if not file_db.update_file_tmp_count_by_id(file_id, 0):
         print("更新文件临时计数失败")

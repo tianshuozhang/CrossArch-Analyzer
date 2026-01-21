@@ -1,8 +1,10 @@
-from flask import request, jsonify, current_app
-import os, zipfile, json
+from flask import request, jsonify
+import os, json
 
 from app.Graph import Graph
 from utils.token import token_required
+from utils.path import *
+from utils.zip import *
 
 from db.db_visualData import VisualizationDataDB
 from db.db_user import UserDB
@@ -41,7 +43,17 @@ def get_list(user_id: int):
 def get_graph(user_id: int):
     # === 1. 获取用户要打开的图ID ===
     graph_id = request.form.get("graph_id")
-
+    if not graph_id:
+        return (
+            jsonify(
+                {
+                    "state": "fail",
+                    "description": "没有提供图ID",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
     # === 2. 读取图文件数据 ===
     opened_project_id = user_db.get_opened_project_id(user_id)
     if not opened_project_id:
@@ -55,16 +67,12 @@ def get_graph(user_id: int):
             ),
             400,
         )
-    project_path = os.path.join(
-        current_app.config["ROOT"],
-        "data",
-        str(user_id),
-        "project",
-        f"{opened_project_id}.zip",
+
+    graph_data_content = zip_read_file_from_zip(
+        path_file_save_zip(user_id, opened_project_id),
+        os.path.join("graph", f"{graph_id}.json"),
     )
-    with zipfile.ZipFile(project_path, "r") as zip_file:
-        graph_path = os.path.join("graph", f"{graph_id}.json")
-        graph_data = json.loads(zip_file.read(graph_path).decode("utf-8"))
+    graph_data = json.loads(graph_data_content)
 
     # === 3. 返回图数据 ===
 

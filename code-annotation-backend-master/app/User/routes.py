@@ -9,6 +9,7 @@ from db.db_user import UserDB
 from db.db_project import ProjectDB
 from db.db_archTag import ArchTagDB
 from utils.token import token_required
+from utils.path import *
 
 user_db = UserDB()
 project_db = ProjectDB()
@@ -17,20 +18,19 @@ arch_tag_db = ArchTagDB()
 
 def init_user_data(user_id: int):
     # 创建用户目录
-    user_dir = os.path.join(current_app.config["ROOT"], "data", str(user_id))
+    user_dir = path_dir_user(user_id)
     if not os.path.exists(user_dir):
         os.makedirs(user_dir)
 
     # 创建用户的项目目录和open目录
-    project_dir = os.path.join(user_dir, "project")
-    if not os.path.exists(project_dir):
-        os.makedirs(project_dir)
+    save_dir = path_dir_save(user_id)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
-    open_dir = os.path.join(user_dir, "open")
+    open_dir = path_dir_open(user_id)
     if os.path.exists(open_dir):
         print("WARNING:用户有之前没有清理的打开项目")
-        shutil.rmtree(open_dir)
-        os.makedirs(open_dir)
+        path_tool_clean_dir(open_dir)
         if not user_db.update_opened_project_id(user_id, 0):
             print("ERROR:更新用户已打开项目失败")
     else:

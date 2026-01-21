@@ -42,7 +42,7 @@ class UserDB(DBc):
     def username_exists(self, username: str) -> bool:
         """检查用户名是否已存在（注册时用）"""
         sql = "SELECT 1 FROM users WHERE username = %s"
-        self.cursor.execute(sql, (username,))
+        self.execute(sql, (username,))
         return self.cursor.fetchone() is not None
 
     def get_user_by_id(self, user_id: int) -> dict | None:
@@ -50,7 +50,7 @@ class UserDB(DBc):
         sql = (
             "SELECT id, username, password_hash, created_time FROM users WHERE id = %s"
         )
-        self.cursor.execute(sql, (user_id,))
+        self.execute(sql, (user_id,))
         result = self.cursor.fetchone()
         return result if result else None
 
@@ -63,14 +63,14 @@ class UserDB(DBc):
     def get_user_by_username(self, username: str) -> dict | None:
         """根据用户名获取用户完整信息（用于登录验证）"""
         sql = "SELECT id, username, password_hash, created_time FROM users WHERE username = %s"
-        self.cursor.execute(sql, (username,))
+        self.execute(sql, (username,))
         result = self.cursor.fetchone()
         return result if result else None
 
     def get_opened_project_id(self, user_id: int) -> int | None:
         """获取用户已打开的项目ID"""
         sql = "SELECT opened_project_id FROM users WHERE id = %s"
-        self.cursor.execute(sql, (user_id,))
+        self.execute(sql, (user_id,))
         result = self.cursor.fetchone()
         return result["opened_project_id"] if result else None
 

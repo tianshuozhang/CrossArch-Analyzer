@@ -43,14 +43,14 @@ class ProjectDB(DBc):
     def get_project_name(self, project_id: int) -> str | None:
         """根据项目 ID 查询项目名称"""
         sql = "SELECT name FROM projects WHERE id = %s"
-        self.cursor.execute(sql, (project_id,))
+        self.execute(sql, (project_id,))
         result = self.cursor.fetchone()
         return result["name"] if result else None
 
-    def get_project_list_by_user_id(self, user_id: int) -> list[dict]:
+    def get_project_view_list_by_user_id(self, user_id: int) -> list[dict]:
         """根据用户 ID 查询项目列表"""
-        sql = "SELECT * FROM projects WHERE user_id = %s"
-        self.cursor.execute(sql, (user_id,))
+        sql = "SELECT id,name,modified_time FROM projects WHERE user_id = %s"
+        self.execute(sql, (user_id,))
         return self.cursor.fetchall()
 
     def delete_project_by_id(self, project_id: int) -> bool:

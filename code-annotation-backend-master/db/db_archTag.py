@@ -56,7 +56,7 @@ class ArchTagDB(DBc):
     def get_arch_tag_id(self, text, user_id) -> int | None:
         """根据文本和用户ID获取标签ID"""
         sql = "SELECT id FROM arch_tags WHERE text = %s AND user_id = %s"
-        self.cursor.execute(sql, (text, user_id))
+        self.execute(sql, (text, user_id))
         result = self.cursor.fetchone()
         return result["id"] if result else None
 

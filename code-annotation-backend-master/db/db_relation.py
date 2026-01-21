@@ -61,15 +61,12 @@ class RelationDB(DBc):
         except Exception:
             return False  # 或根据需要抛出异常
 
-    def get_relations_by_file_id(self, file_id: int, project_id: int):
-        """获取文件下的所有关系"""
-        sql = f"SELECT * FROM snippet_arch_tag_relations WHERE file_id = %s AND project_id = %s"
-        self.cursor.execute(sql, (file_id, project_id))
-        results = self.cursor.fetchall()
+    def _map_results(self, results):
+        """返回格式{"start": 1, "end": 2, "arch_names": ["arm", "riscv"]}"""
         return [
             {
-                "start": result["start"],
-                "end": result["end"],
+                "start": int(result["start"]),
+                "end": int(result["end"]),
                 "arch_names": [
                     key
                     for key, value in result.items()
@@ -83,27 +80,19 @@ class RelationDB(DBc):
             for result in results
         ]
 
+    def get_relations_by_file_id(self, file_id: int, project_id: int):
+        """获取文件下的所有关系"""
+        sql = f"SELECT * FROM snippet_arch_tag_relations WHERE file_id = %s AND project_id = %s"
+        self.execute(sql, (file_id, project_id))
+        results = self.cursor.fetchall()
+        return self._map_results(results)
+
     def get_relations_by_project_id(self, project_id: int):
         """获取项目下的所有关系"""
         sql = f"SELECT * FROM snippet_arch_tag_relations WHERE project_id = %s"
-        self.cursor.execute(sql, (project_id))
+        self.execute(sql, (project_id))
         results = self.cursor.fetchall()
-        return [
-            {
-                "start": result["start"],
-                "end": result["end"],
-                "arch_names": [
-                    key
-                    for key, value in result.items()
-                    if key != "start"
-                    and key != "end"
-                    and key != "file_id"
-                    and key != "project_id"
-                    and value == 1
-                ],
-            }
-            for result in results
-        ]
+        return self._map_results(results)
 
     def delete_relations_by_file_id(self, file_id: int, project_id: int) -> bool:
         """删除文件下的所有关系"""
@@ -122,5 +111,5 @@ class RelationDB(DBc):
     def get_relation_include_line(self, file_id: int, project_id: int, line: int):
         """查询文件下包含某行的关系"""
         sql = f"SELECT start,end FROM snippet_arch_tag_relations WHERE file_id = %s AND project_id = %s AND start <= %s AND end >= %s"
-        self.cursor.execute(sql, (file_id, project_id, line, line))
+        self.execute(sql, (file_id, project_id, line, line))
         return self.cursor.fetchone()

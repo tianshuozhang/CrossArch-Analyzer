@@ -117,19 +117,34 @@ def modify_arch_tag(user_id: int):
             400,
         )
 
-    if not relation_db.update_relation_arch_value(
-        file_id, opened_project_id, line, remove_tag_text, 0
-    ):
-        return (
-            jsonify(
-                {
-                    "state": "fail",
-                    "description": "修改标签值失败",
-                    "rst": {},
-                }
-            ),
-            400,
-        )
+    if remove_tag_text != arch_tag_text:
+        if remove_tag_text:
+            if not relation_db.update_relation_arch_value(
+                file_id, opened_project_id, line, remove_tag_text, 0
+            ):
+                return (
+                    jsonify(
+                        {
+                            "state": "fail",
+                            "description": "修改旧标签值失败",
+                            "rst": {},
+                        }
+                    ),
+                    400,
+                )
+        if not relation_db.update_relation_arch_value(
+            file_id, opened_project_id, line, arch_tag_text, 1
+        ):
+            return (
+                jsonify(
+                    {
+                        "state": "fail",
+                        "description": "修改新标签值失败",
+                        "rst": {},
+                    }
+                ),
+                400,
+            )
 
     # === 4. 获取当前行关系然后返回 ===
     relation = relation_db.get_relation_include_line(file_id, opened_project_id, line)
