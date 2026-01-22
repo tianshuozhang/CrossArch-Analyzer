@@ -7,7 +7,8 @@ T = TypeVar("T")
 # projectIterator
 
 
-class FileResultDict(NamedTuple, Generic[T]):
+@dataclass(frozen=True)
+class FileResultDict(Generic[T]):
     data: dict[str, T]
 
     def __getitem__(self, key: str) -> T:
@@ -38,6 +39,7 @@ class TagTargetInfo(NamedTuple):
 @dataclass
 class CodeNode:
     name: str
+    syntax: str = "other"
     archs: set[str] = field(default_factory=set)
     info: Optional[TagTargetInfo] = None
 

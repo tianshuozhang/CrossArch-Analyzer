@@ -1,19 +1,21 @@
 import os
 import sys
-current_dir = os.path.dirname(os.path.abspath(__file__))# 获取当前文件所在目录
-LLM_dir = os.path.dirname(current_dir)# 获取LLM目录
-sys.path.append(LLM_dir)# 将LLM目录添加到sys.path中
+
+current_dir = os.path.dirname(os.path.abspath(__file__))  # 获取当前文件所在目录
+LLM_dir = os.path.dirname(current_dir)  # 获取LLM目录
+sys.path.append(LLM_dir)  # 将LLM目录添加到sys.path中
 
 from typing import List, Tuple, Set, Optional, Dict
 import json
 from enum import Enum
 
-import core.ts_helper as ts_helper
-from core.ts_helper import (
+import algo_framework.utils.ts_helper as ts_helper
+from algo_framework.utils.ts_helper import (
     TSTypes,
     SExpressionTemplate,
     findFilteredIdentInTSNode,
     findTSNodesWithSExpr,
+    findAncestorUntil,
 )
 from tree_sitter import Node as TSNode
 
@@ -99,36 +101,48 @@ class StaticClassifyTool:
     def _prepare(
         root_tsNode: TSNode,
     ) -> Tuple[dict[str | int, CodeNode], dict[int, CodeNode]]:
-        codeNode_graph: Dict[str, CodeNode] = {}
+        codeNode_graph: Dict[str | int, CodeNode] = {}
         tsNodeId2CodeNode: Dict[int, CodeNode] = {}
         for user_define_sexpr_tuple in SExpressionTemplate.USER_DEFINE_SYMBOL.values():
             sentence_tsNodes = findTSNodesWithSExpr(
                 root_tsNode, user_define_sexpr_tuple.sentence
             )
             for sentence_tsNode in sentence_tsNodes:
-                userDefineSymbol_tsNode = findTSNodesWithSExpr(
+                userDefineSymbol_tsNodes = findTSNodesWithSExpr(
                     sentence_tsNode, user_define_sexpr_tuple.define_symbol
-                )[0]
-                symbolName = userDefineSymbol_tsNode.text.decode()
-                if symbolName not in codeNode_graph:
-                    codeNode = CodeNode(
-                        userDefineSymbol_tsNode.text.decode(),
-                        NodeType.USERDEFINED,
-                        [sentence_tsNode],
+                )
+                if userDefineSymbol_tsNodes:
+                    userDefineSymbol_tsNode = userDefineSymbol_tsNodes[0]
+                    symbolName = userDefineSymbol_tsNode.text.decode()
+                    if symbolName not in codeNode_graph:
+                        codeNode = CodeNode(
+                            userDefineSymbol_tsNode.text.decode(),
+                            NodeType.USERDEFINED,
+                            [sentence_tsNode],
+                        )
+                        codeNode_graph[symbolName] = codeNode
+                        tsNodeId2CodeNode.setdefault(
+                            sentence_tsNode.id,
+                            codeNode,
+                        )
+                    else:
+                        codeNode_graph[symbolName].define_sentence_tsNodes.append(
+                            sentence_tsNode
+                        )
+                        tsNodeId2CodeNode.setdefault(
+                            sentence_tsNode.id,
+                            codeNode_graph[symbolName],
+                        )
+                elif sentence_tsNode.type not in [TSTypes.ENUM_DEF]:
+                    raise RuntimeError(
+                        f"""
+出现了没有考虑到的情况：
+    节点内容是：{sentence_tsNode.text.decode()}\n
+    匹配到的句子结构是：{user_define_sexpr_tuple.sentence}\n
+    现在该句子里的匹配方式是：{user_define_sexpr_tuple.define_symbol}\n
+"""
                     )
-                    codeNode_graph[symbolName] = codeNode
-                    tsNodeId2CodeNode.setdefault(
-                        sentence_tsNode.id,
-                        codeNode,
-                    )
-                else:
-                    codeNode_graph[symbolName].define_sentence_tsNodes.append(
-                        sentence_tsNode
-                    )
-                    tsNodeId2CodeNode.setdefault(
-                        sentence_tsNode.id,
-                        codeNode_graph[symbolName],
-                    )
+
         outerSymbol_tsNodes = findFilteredIdentInTSNode(root_tsNode)
         outerSymbol_tsNodes += findTSNodesWithSExpr(
             root_tsNode, SExpressionTemplate.TOTAL_SYMBOL
@@ -174,11 +188,8 @@ class StaticClassifyTool:
                     )
                 },
             )
-            if tagTarget_tsNode.id not in tsNodeId2CodeNode:
-                codeNode_graph[tagTarget_tsNode.id] = codeNode
-                tsNodeId2CodeNode[tagTarget_tsNode.id] = codeNode
-            else:
-                codeNode_graph[tagTarget_tsNode.id] = codeNode
+            codeNode_graph[tagTarget_tsNode.id] = codeNode
+
         other_tsNodes = findTSNodesWithSExpr(root_tsNode, SExpressionTemplate.OTHER)
         for other_tsNode in other_tsNodes:
             codeNode = CodeNode(other_tsNode.text.decode(), NodeType.OTHER)
@@ -186,6 +197,24 @@ class StaticClassifyTool:
                 other_tsNode.id,
                 codeNode,
             )
+
+        def _checkSenenceCover(codeNode_graph: dict[str | int, CodeNode]):
+            for code_node in codeNode_graph.values():
+                if code_node.nodeType == NodeType.USERDEFINED:
+                    for sentence_tsNode in code_node.define_sentence_tsNodes:
+                        if sentence_tsNode.id not in codeNode_graph:
+                            raise RuntimeError(
+                                f"""
+定义符号的句子没有被tagTarget和other覆盖，该句子是：
+    {sentence_tsNode.text.decode()}
+tagTarget的s表达式为：
+    {SExpressionTemplate.TAG_TARGET}
+other的s表达式为：
+    {SExpressionTemplate.OTHER}
+"""
+                            )
+
+        _checkSenenceCover(codeNode_graph)
         return codeNode_graph, tsNodeId2CodeNode
 
     def _linkToOutsideSymbols(
@@ -274,10 +303,7 @@ class StaticClassifyTool:
         for condMacroTSNode in condMacroTSNodes:
             _spread(condMacroTSNode)
 
-    def _makeTagTargetLink(
-        codeNode_graph: dict[str | int, CodeNode],
-        tsNodeId2CodeNode: dict[int, CodeNode],
-    ) -> None:
+    def _makeTagTargetLink(codeNode_graph: dict[str | int, CodeNode]) -> None:
         for codeNode in codeNode_graph.values():
             if codeNode.nodeType == NodeType.TAGTARGET:
                 tagTarget_tsNode = codeNode.define_sentence_tsNodes[0]
@@ -289,11 +315,7 @@ class StaticClassifyTool:
                     [codeNode_graph[symbol_name] for symbol_name in symbol_names]
                 )
 
-    def _makeUserDefinedLink(
-        codeNode_graph: dict[str | int, CodeNode],
-        tsNodeId2CodeNode: dict[int, CodeNode],
-    ) -> None:
-        symbol_codeNodes = []
+    def _makeUserDefinedLink(codeNode_graph: dict[str | int, CodeNode]) -> None:
         for code_node in codeNode_graph.values():
             if code_node.nodeType == NodeType.USERDEFINED:
                 for sentence_tsNode in code_node.define_sentence_tsNodes:
@@ -301,6 +323,7 @@ class StaticClassifyTool:
                         sentence_tsNode.type
                     ].link_symbols
                     symbol_tsNodes: List[TSNode] = []
+                    symbol_codeNodes = []
                     if link_symbol_sexpr:
                         symbol_tsNodes = findTSNodesWithSExpr(
                             sentence_tsNode,
@@ -314,16 +337,18 @@ class StaticClassifyTool:
                                 sentence_tsNode, SExpressionTemplate.TAG_TARGET
                             )
                             for subTarget_tsNode in subTarget_tsNodes:
-                                subTarget_codeNode = tsNodeId2CodeNode[
-                                    subTarget_tsNode.id
-                                ]
+                                subTarget_codeNode = codeNode_graph[subTarget_tsNode.id]
                                 symbol_codeNodes.extend(
                                     subTarget_codeNode.linkedCodeNodes
                                 )
-                    symbol_codeNodes = [
-                        codeNode_graph[symbol_tsNode.text.decode()]
-                        for symbol_tsNode in symbol_tsNodes
-                    ]
+                    for symbol_tsNode in symbol_tsNodes:
+                        symbol_name = symbol_tsNode.text.decode()
+                        try:
+                            symbol_codeNodes.append(codeNode_graph[symbol_name])
+                        except:
+                            raise RuntimeError(
+                                f"在_prepare中的s表达式没有覆盖符号：{symbol_name}\n所在的句子是：\n{sentence_tsNode.text.decode()}"
+                            )
                     symbol_codeNodes.extend(
                         codeNode_graph[sentence_tsNode.id].linkedCodeNodes
                     )
@@ -424,18 +449,26 @@ class StaticClassifyTool:
         }
         return analysis_result
 
-    def scan_code(code: str):
+    def scan_code(
+        code: str,
+    ) -> Tuple[Optional[Dict], Optional[List[Dict[str, int | str]]]]:
         code, collected_exprs = StaticClassifyTool._preprocess_code(code)
-        root_tsNode, error_tsNodes = ts_helper.parse(code)
+        root_tsNode, error_tsNodes = ts_helper.ts_parse(code)
         if len(error_tsNodes) > 0:
-            error_lines = [
-                error_tsNode.start_point.row + 1 for error_tsNode in error_tsNodes
+            error_snippets = [
+                {
+                    "error_line": error_tsNode.start_point.row + 1,
+                    "error_content": findAncestorUntil(
+                        error_tsNode, ["function_definition", "expression_statement"]
+                    ),
+                }
+                for error_tsNode in error_tsNodes
             ]
-            return None, error_lines
+            return None, error_snippets
         codeNode_graph, tsNodeId2CodeNode = StaticClassifyTool._prepare(root_tsNode)
         StaticClassifyTool._linkToOutsideSymbols(root_tsNode, codeNode_graph)
-        StaticClassifyTool._makeTagTargetLink(codeNode_graph, tsNodeId2CodeNode)
-        StaticClassifyTool._makeUserDefinedLink(codeNode_graph, tsNodeId2CodeNode)
+        StaticClassifyTool._makeTagTargetLink(codeNode_graph)
+        StaticClassifyTool._makeUserDefinedLink(codeNode_graph)
         tagTarget_outerSymbol_dict, outerSymbol_tagTarget_dict = (
             StaticClassifyTool._linkTagTargetWithOuterSymbol(
                 codeNode_graph, collected_exprs
@@ -489,11 +522,11 @@ int main() {
     import json
 
     analysis_result, error_lines = StaticClassifyTool.scan_code(code)
-    print(analysis_result.keys())
-    print("Symbols:")
-    [print("\t" + str(i)) for i in analysis_result["symbols"]]
-    print("symbol to tagTarget:")
-    print(json.dumps(analysis_result["outerSymbol_tagTarget_dict"], indent=4))
+    # print(analysis_result.keys())
+    # print("Symbols:")
+    # [print("\t" + str(i)) for i in analysis_result["symbols"]]
+    # print("symbol to tagTarget:")
+    # print(json.dumps(analysis_result["outerSymbol_tagTarget_dict"], indent=4))
     # if analysis_result:
     #     with open("analysis_result.json", "w") as f:
     #         json.dump(analysis_result["outerSymbol_tagTarget_dict"], f, indent=4)
