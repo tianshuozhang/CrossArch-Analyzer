@@ -1,6 +1,7 @@
 """
 文件筛选审计模块
-整合了基础验证、间谍审计和内容审计功能
+
+整合了基础验证、反向引用审计和内容审计功能，用于验证和优化筛选结果。
 """
 import os
 import re
@@ -8,11 +9,23 @@ import random
 from collections import defaultdict
 from typing import Dict, List, Set, Tuple, Any
 
+from .statistics import (
+    DirectoryStatistics,
+    FileTypeStatistics,
+    FileSizeStatistics,
+    KeywordStatistics
+)
+from .report_formatter import AuditReportFormatter
+
 
 class ScreeningAuditor:
     """
     筛选审计器
-    提供多种审计方法来验证和优化筛选结果
+    
+    提供多种审计方法来验证和优化筛选结果，包括：
+    - 基础验证审计：目录覆盖率、关键词检查、文件类型分布等
+    - 反向引用审计：检测被丢弃但引用保留头文件的源文件
+    - 内容审计：分析孤儿头文件和符号匹配情况
     """
     
     def __init__(self, all_files: Dict[str, str], kept_files: List[str]):
@@ -31,7 +44,8 @@ class ScreeningAuditor:
         """
         运行基础验证审计
         
-        对应原 verification.py 的功能
+        对筛选结果进行基础验证，包括目录覆盖率、关键词检查、
+        文件类型分布、核心架构目录检查和文件大小分布分析。
         
         Args:
             all_files: 所有文件路径字典，键为文件路径，值为文件内容
@@ -41,157 +55,143 @@ class ScreeningAuditor:
         kept_set = set(kept_files)
         dropped_files = [f for f in all_file_paths if f not in kept_set]
         
-        print(f"\n{'='*20} 🔍 筛选器审计报告 {'='*20}")
-        print(f"📊 总体数据: 总数 {len(all_file_paths)} | 保留 {len(kept_files)} | 丢弃 {len(dropped_files)}")
+        formatter = AuditReportFormatter()
+        lines = []
+        
+        # 报告头部
+        lines.extend(formatter.format_section_header("筛选器审计报告"))
+        lines.append(f"总体数据: 总数 {len(all_file_paths)} | 保留 {len(kept_files)} | 丢弃 {len(dropped_files)}")
         if len(all_file_paths) > 0:
-            print(f"📉 过滤率: {len(dropped_files)/len(all_file_paths)*100:.1f}%")
+            lines.append(f"过滤率: {len(dropped_files)/len(all_file_paths)*100:.1f}%")
 
         # 1. 目录覆盖率分析
-        print(f"\n📂 [分析 1] 关键目录保留率 (Directory Coverage):")
-        print("(检查核心目录是否被过度清洗，或者驱动目录是否被完全忽略)")
+        lines.append(f"\n[分析 1] 关键目录保留率 (Directory Coverage)")
+        lines.append("说明: 检查核心目录是否被过度过滤，或者驱动目录是否被完全忽略")
         
-        dir_stats = defaultdict(lambda: {"total": 0, "kept": 0})
-        for f in all_file_paths:
-            parts = f.replace("\\", "/").split("/")
-            if len(parts) > 2: 
-                top_dir = f"{parts[0]}/{parts[1]}"
-            else: 
-                top_dir = parts[0]
-            
-            dir_stats[top_dir]["total"] += 1
-            if f in kept_set:
-                dir_stats[top_dir]["kept"] += 1
-                
+        dir_stats = DirectoryStatistics.calculate_directory_coverage(
+            all_file_paths, kept_set, max_depth=2
+        )
         sorted_dirs = sorted(dir_stats.items(), key=lambda x: x[1]['total'], reverse=True)[:15]
         
-        print(f"{'目录路径':<40} | {'总数':<5} | {'保留':<5} | {'保留率':<8}")
-        print("-" * 70)
+        table_rows = []
         for d, stat in sorted_dirs:
             ratio = (stat['kept'] / stat['total']) * 100 if stat['total'] > 0 else 0
-            print(f"{d:<40} | {stat['total']:<5} | {stat['kept']:<5} | {ratio:.1f}%")
+            table_rows.append([d, str(stat['total']), str(stat['kept']), f"{ratio:.1f}%"])
+        
+        lines.extend(formatter.format_table(
+            ["目录路径", "总数", "保留", "保留率"],
+            table_rows,
+            col_widths=[40, 5, 5, 8]
+        ))
 
-        # 2. 关键词诱捕
-        print(f"\n🎣 [分析 2] 丢弃列表关键词诱捕 (Dropped Keyword Trap):")
-        print("(如果在被丢弃的文件路径里发现了这些词，可能是误杀)")
+        # 2. 关键词检查
+        lines.append(f"\n[分析 2] 丢弃列表关键词检查 (Dropped Keyword Check)")
+        lines.append("说明: 如果在被丢弃的文件路径里发现了这些词，可能是误过滤")
         
-        suspicious_keywords = [
-            "sched", "task", "thread", "memory", "alloc", "interrupt", "irq", 
-            "dispatch", "hal_", "os_", "arch", "bsp"
-        ]
-        
-        caught_traps = []
-        for f in dropped_files:
-            for kw in suspicious_keywords:
-                if kw in f.lower():
-                    caught_traps.append(f)
-                    break
+        caught_traps = KeywordStatistics.find_suspicious_files(dropped_files)
         
         if caught_traps:
-            print(f"⚠️  警告: 在丢弃列表中发现了 {len(caught_traps)} 个包含敏感词的文件。")
-            print("   抽样检查 (这些文件真的该被扔掉吗?):")
             sample_size = min(10, len(caught_traps))
             sample_files = random.sample(caught_traps, sample_size) if sample_size > 0 else []
-            for f in sample_files:
-                print(f"   ❌ [已丢弃] {f}")
+            lines.extend(formatter.format_warning(
+                f"在丢弃列表中发现了 {len(caught_traps)} 个包含敏感词的文件",
+                [f"[已丢弃] {f}" for f in sample_files]
+            ))
         else:
-            print("✅ 安全: 丢弃列表中未发现明显的高危关键词。")
+            lines.extend(formatter.format_pass("丢弃列表中未发现明显的高危关键词"))
 
         # 3. 文件扩展名分布分析
-        print(f"\n📄 [分析 3] 文件类型分布 (File Type Distribution):")
-        print("(检查不同文件类型的保留率是否合理)")
+        lines.append(f"\n[分析 3] 文件类型分布 (File Type Distribution)")
+        lines.append("说明: 检查不同文件类型的保留率是否合理")
         
-        ext_stats = defaultdict(lambda: {"total": 0, "kept": 0})
-        for f in all_file_paths:
-            ext = os.path.splitext(f)[1].lower()
-            if not ext:
-                ext = "(无扩展名)"
-            ext_stats[ext]["total"] += 1
-            if f in kept_set:
-                ext_stats[ext]["kept"] += 1
-        
-        print(f"{'文件类型':<15} | {'总数':<5} | {'保留':<5} | {'保留率':<8}")
-        print("-" * 40)
+        ext_stats = FileTypeStatistics.calculate_extension_stats(all_file_paths, kept_set)
+        table_rows = []
         for ext, stat in sorted(ext_stats.items(), key=lambda x: x[1]['total'], reverse=True):
             ratio = (stat['kept'] / stat['total']) * 100 if stat['total'] > 0 else 0
-            print(f"{ext:<15} | {stat['total']:<5} | {stat['kept']:<5} | {ratio:.1f}%")
+            table_rows.append([ext, str(stat['total']), str(stat['kept']), f"{ratio:.1f}%"])
+        
+        lines.extend(formatter.format_table(
+            ["文件类型", "总数", "保留", "保留率"],
+            table_rows,
+            col_widths=[15, 5, 5, 8]
+        ))
 
         # 4. 核心架构目录检查
-        print(f"\n🏗️  [分析 4] 核心架构目录检查 (Core Architecture Directories):")
-        print("(检查关键架构相关目录的保留情况)")
+        lines.append(f"\n[分析 4] 核心架构目录检查 (Core Architecture Directories)")
+        lines.append("说明: 检查关键架构相关目录的保留情况")
         
         critical_dirs = ["arch", "hal", "bsp", "driver", "kernel", "os", "platform"]
-        critical_stats = {}
-        
-        for critical_dir in critical_dirs:
-            matching_files = [f for f in all_file_paths if f"/{critical_dir}/" in f.replace("\\", "/").lower() 
-                             or f.replace("\\", "/").lower().startswith(f"{critical_dir}/")]
-            if matching_files:
-                kept_count = sum(1 for f in matching_files if f in kept_set)
-                critical_stats[critical_dir] = {
-                    "total": len(matching_files),
-                    "kept": kept_count,
-                    "ratio": (kept_count / len(matching_files) * 100) if matching_files else 0
-                }
+        critical_stats = DirectoryStatistics.calculate_critical_directory_stats(
+            all_file_paths, kept_set, critical_dirs
+        )
         
         if critical_stats:
-            print(f"{'目录名':<15} | {'总数':<5} | {'保留':<5} | {'保留率':<8}")
-            print("-" * 40)
+            table_rows = []
             for dir_name, stat in sorted(critical_stats.items(), key=lambda x: x[1]['total'], reverse=True):
-                print(f"{dir_name:<15} | {stat['total']:<5} | {stat['kept']:<5} | {stat['ratio']:.1f}%")
-                
-            fully_dropped = [d for d, s in critical_stats.items() if s['kept'] == 0 and s['total'] > 0]
+                table_rows.append([
+                    dir_name,
+                    str(stat['total']),
+                    str(stat['kept']),
+                    f"{stat['ratio']:.1f}%"
+                ])
+            
+            lines.extend(formatter.format_table(
+                ["目录名", "总数", "保留", "保留率"],
+                table_rows,
+                col_widths=[15, 5, 5, 8]
+            ))
+            
+            fully_dropped = [
+                d for d, s in critical_stats.items() 
+                if s['kept'] == 0 and s['total'] > 0
+            ]
             if fully_dropped:
-                print(f"\n⚠️  警告: 以下核心目录的所有文件都被过滤了:")
-                for d in fully_dropped:
-                    print(f"   ❌ {d}/ (共 {critical_stats[d]['total']} 个文件)")
+                dropped_items = [
+                    f"{d}/ (共 {critical_stats[d]['total']} 个文件)" 
+                    for d in fully_dropped
+                ]
+                lines.extend(formatter.format_warning(
+                    "以下核心目录的所有文件都被过滤了",
+                    dropped_items
+                ))
         else:
-            print("ℹ️  未发现常见的核心架构目录。")
+            lines.extend(formatter.format_info("未发现常见的核心架构目录"))
 
         # 5. 文件大小分布分析
-        print(f"\n📏 [分析 5] 文件大小分布 (File Size Distribution):")
-        print("(检查大文件和小文件的保留率差异)")
+        lines.append(f"\n[分析 5] 文件大小分布 (File Size Distribution)")
+        lines.append("说明: 检查大文件和小文件的保留率差异")
         
-        size_ranges = [
-            ("< 1KB", 0, 1024),
-            ("1KB - 10KB", 1024, 10*1024),
-            ("10KB - 100KB", 10*1024, 100*1024),
-            ("> 100KB", 100*1024, float('inf'))
-        ]
-        
-        size_stats = {}
-        for label, min_size, max_size in size_ranges:
-            matching_files = []
-            for f in all_file_paths:
-                try:
-                    file_size = len(all_files.get(f, ""))
-                    if min_size <= file_size < max_size:
-                        matching_files.append(f)
-                except:
-                    pass
-            
-            if matching_files:
-                kept_count = sum(1 for f in matching_files if f in kept_set)
-                size_stats[label] = {
-                    "total": len(matching_files),
-                    "kept": kept_count,
-                    "ratio": (kept_count / len(matching_files) * 100) if matching_files else 0
-                }
+        size_stats = FileSizeStatistics.calculate_size_stats(
+            all_file_paths, all_files, kept_set
+        )
         
         if size_stats:
-            print(f"{'大小范围':<15} | {'总数':<5} | {'保留':<5} | {'保留率':<8}")
-            print("-" * 40)
+            table_rows = []
             for size_label, stat in size_stats.items():
-                print(f"{size_label:<15} | {stat['total']:<5} | {stat['kept']:<5} | {stat['ratio']:.1f}%")
+                table_rows.append([
+                    size_label,
+                    str(stat['total']),
+                    str(stat['kept']),
+                    f"{stat['ratio']:.1f}%"
+                ])
+            
+            lines.extend(formatter.format_table(
+                ["大小范围", "总数", "保留", "保留率"],
+                table_rows,
+                col_widths=[15, 5, 5, 8]
+            ))
 
-        print(f"\n{'='*70}")
-        print("✅ 筛选器审计完成")
-        print(f"{'='*70}\n")
+        lines.append(f"\n{'='*70}")
+        lines.append("筛选器审计完成")
+        lines.append(f"{'='*70}\n")
+        
+        formatter.print_lines(lines)
     
     def run_spy_check(self, all_files: Dict[str, str], kept_files: List[str]) -> Dict[str, Any]:
         """
-        运行间谍审计（黑盒渗透测试）
+        运行反向引用审计
         
-        对应原 spy_audit.py 的功能
+        检测被丢弃但引用了保留头文件的源文件，这些文件可能是被误过滤的实现文件。
         
         Args:
             all_files: 所有文件的字典，键为文件路径，值为文件内容
@@ -203,7 +203,7 @@ class ScreeningAuditor:
         kept_set = set(kept_files)
         dropped_files = [f for f in all_files.keys() if f not in kept_set]
         
-        # Step 1: Build the "VIP List" (Index Kept Headers)
+        # 步骤1：构建保留头文件索引
         vip_headers = {}
         for f in kept_files:
             if f.endswith(('.h', '.hpp')):
@@ -213,12 +213,12 @@ class ScreeningAuditor:
                 vip_headers[fname].append(f)
         
         print(f"\n{'='*70}")
-        print(f"🕵️  [SPY AUDIT] 黑盒渗透测试启动")
+        print("反向引用审计")
         print(f"{'='*70}")
-        print(f"📋 VIP 头文件索引: {len(vip_headers)} 个唯一文件名")
-        print(f"📊 监控范围: {len(dropped_files)} 个被丢弃的文件")
+        print(f"保留头文件索引: {len(vip_headers)} 个唯一文件名")
+        print(f"监控范围: {len(dropped_files)} 个被丢弃的文件")
         
-        # Step 2: Infiltrate the "Graveyard" (Scan Dropped Files)
+        # 步骤2：扫描被丢弃的文件
         suspicious_files = []
         include_pattern = re.compile(r'#include\s*[<"]([^">]+)[">]')
         
@@ -242,30 +242,30 @@ class ScreeningAuditor:
                     })
                     break
         
-        # Step 3: Generate Report
-        print(f"\n🔍 扫描完成: 检查了 {scanned_count} 个被丢弃的源文件")
-        print(f"\n🚨 [SPY REPORT] 发现 {len(suspicious_files)} 个可疑的被误杀文件！")
-        print("   ⚠️  这些文件被丢弃，但它们引用了被保留的头文件。")
-        print("   💡 它们很可能是缺失的实现文件。\n")
+        # 步骤3：生成报告
+        print(f"\n扫描完成: 检查了 {scanned_count} 个被丢弃的源文件")
+        print(f"\n[反向引用报告] 发现 {len(suspicious_files)} 个可疑的被误过滤文件")
+        print("   说明: 这些文件被丢弃，但它们引用了被保留的头文件")
+        print("   可能原因: 它们很可能是缺失的实现文件\n")
         
         if suspicious_files:
-            print(f"📋 前 20 个最可疑的误杀文件 (Top Suspicious False Negatives):")
+            print(f"前 20 个最可疑的误过滤文件 (Top Suspicious False Negatives):")
             print("-" * 70)
             for i, item in enumerate(suspicious_files[:20], 1):
                 suspect_name = os.path.basename(item['suspect'])
                 header_name = os.path.basename(item['linked_to'])
-                print(f"   {i:2d}. 🚩 {suspect_name}")
+                print(f"   {i:2d}. [可疑] {suspect_name}")
                 print(f"       └── includes '{header_name}' (from {os.path.dirname(item['linked_to'])})")
-                print(f"       📁 {item['suspect']}")
+                print(f"       [路径] {item['suspect']}")
                 if i < min(20, len(suspicious_files)):
                     print()
             
             if len(suspicious_files) > 20:
                 print(f"\n   ... 还有 {len(suspicious_files) - 20} 个可疑文件未显示")
         else:
-            print("   ✅ 未发现可疑文件（所有被丢弃的源文件都没有引用保留的头文件）")
+            print("   [通过] 未发现可疑文件（所有被丢弃的源文件都没有引用保留的头文件）")
         
-        # Step 4: Calculate "Orphan Rate" (孤儿率)
+        # 步骤4：计算孤儿率
         linked_headers = set()
         for item in suspicious_files:
             linked_headers.add(item['linked_to'])
@@ -279,24 +279,24 @@ class ScreeningAuditor:
         
         orphan_rate = (len(orphan_headers) / total_headers) * 100 if total_headers > 0 else 0
         
-        print(f"\n📊 [孤儿率分析]")
+        print(f"\n[孤儿率分析]")
         print(f"   - 保留的头文件总数: {total_headers}")
         print(f"   - 找到关联实现的头文件: {len(linked_headers)}")
         print(f"   - 孤儿头文件（无关联实现）: {len(orphan_headers)}")
         print(f"   - 孤儿率: {orphan_rate:.1f}%")
         
         if orphan_headers and len(orphan_headers) <= 10:
-            print(f"\n   📋 孤儿头文件列表:")
+            print(f"\n   孤儿头文件列表:")
             for h in orphan_headers[:10]:
                 print(f"      - {os.path.basename(h)} ({h})")
         elif orphan_headers:
-            print(f"\n   📋 前 10 个孤儿头文件:")
+            print(f"\n   前 10 个孤儿头文件:")
             for h in orphan_headers[:10]:
                 print(f"      - {os.path.basename(h)} ({h})")
             print(f"      ... 还有 {len(orphan_headers) - 10} 个")
         
         print(f"\n{'='*70}")
-        print(f"✅ [SPY AUDIT] 审计完成")
+        print("反向引用审计完成")
         print(f"{'='*70}\n")
         
         return {
@@ -307,9 +307,10 @@ class ScreeningAuditor:
     def run_content_analysis(self, all_files: Dict[str, str], kept_files: List[str], 
                             orphan_headers: List[str] = None) -> Tuple[Set[str], List[Tuple[str, int]]]:
         """
-        运行内容审计（代码法医分析）
+        运行内容审计
         
-        对应原 content_audit.py 的功能
+        分析孤儿头文件的特征，并检测被丢弃文件中是否包含保留头文件中的符号，
+        以识别可能被误过滤的实现文件。
         
         Args:
             all_files: 所有文件的字典，键为文件路径，值为文件内容
@@ -317,7 +318,7 @@ class ScreeningAuditor:
             orphan_headers: 孤儿头文件列表（可选，如果不提供则自动计算）
             
         Returns:
-            (符号指纹集合, 可疑文件列表)
+            (符号指纹集合, 可疑文件列表) 元组
         """
         kept_set = set(kept_files)
         dropped_files = [f for f in all_files.keys() if f not in kept_set]
@@ -325,11 +326,11 @@ class ScreeningAuditor:
         if orphan_headers is None:
             orphan_headers = [f for f in kept_files if f.endswith(('.h', '.hpp'))]
         
-        # Step 1: 分析孤儿头文件
+        # 步骤1：分析孤儿头文件
         print(f"\n{'='*70}")
-        print(f"🔬 [CONTENT AUDIT] 孤儿头文件尸检")
+        print("内容审计 - 孤儿头文件分析")
         print(f"{'='*70}")
-        print(f"📋 分析目标: {len(orphan_headers)} 个孤儿头文件")
+        print(f"分析目标: {len(orphan_headers)} 个孤儿头文件")
         
         header_only_traits = {
             "template": 0,
@@ -378,7 +379,7 @@ class ScreeningAuditor:
         
         total_headers = len(orphan_headers)
         
-        print(f"\n📊 [孤儿身份验证] Header-Only 特征分析:")
+        print(f"\n[孤儿头文件特征分析] Header-Only 特征:")
         print(f"   - 包含 template:     {header_only_traits['template']:3d}/{total_headers} ({header_only_traits['template']/total_headers*100:.1f}%)")
         print(f"   - 包含 inline:       {header_only_traits['inline']:3d}/{total_headers} ({header_only_traits['inline']/total_headers*100:.1f}%)")
         print(f"   - 包含 virtual:      {header_only_traits['virtual']:3d}/{total_headers} ({header_only_traits['virtual']/total_headers*100:.1f}%)")
@@ -390,22 +391,22 @@ class ScreeningAuditor:
         
         header_only_rate = (header_only_count / total_headers * 100) if total_headers > 0 else 0
         
-        print(f"\n🎯 Header-Only 疑似率: {header_only_rate:.1f}%")
-        print(f"   💡 解释: 高百分比意味着这些头文件很可能是模板/内联实现，")
+        print(f"\nHeader-Only 疑似率: {header_only_rate:.1f}%")
+        print(f"   说明: 高百分比意味着这些头文件很可能是模板/内联实现，")
         print(f"      不需要单独的 .cpp 文件，这是正常的。")
         
-        print(f"\n🔍 提取的符号指纹: {len(symbol_fingerprints)} 个函数名")
+        print(f"\n提取的符号指纹: {len(symbol_fingerprints)} 个函数名")
         if len(symbol_fingerprints) <= 20:
             print(f"   示例: {', '.join(list(symbol_fingerprints)[:20])}")
         else:
             print(f"   示例: {', '.join(list(symbol_fingerprints)[:20])} ...")
         
-        # Step 2: 符号越狱检测
+        # 步骤2：符号匹配检测
         print(f"\n{'='*70}")
-        print(f"🕵️  [SYMBOL LEAK CHECK] 符号越狱检测")
+        print("内容审计 - 符号匹配检测")
         print(f"{'='*70}")
-        print(f"📋 扫描范围: {len(dropped_files)} 个被丢弃的文件")
-        print(f"🔑 符号库: {len(symbol_fingerprints)} 个关键符号")
+        print(f"扫描范围: {len(dropped_files)} 个被丢弃的文件")
+        print(f"符号库: {len(symbol_fingerprints)} 个关键符号")
         
         suspicious_files = []
         source_files = [f for f in dropped_files if f.endswith(('.c', '.cpp', '.cc', '.cxx'))]
@@ -430,30 +431,32 @@ class ScreeningAuditor:
         
         suspicious_files.sort(key=lambda x: x['hit_count'], reverse=True)
         
-        print(f"🔍 扫描完成: 检查了 {len(source_files)} 个被丢弃的源文件")
-        print(f"\n🚨 [符号越狱报告] 发现 {len(suspicious_files)} 个可疑文件")
-        print("   ⚠️  这些被丢弃的文件包含大量保留头文件中的符号，")
-        print("      可能是被误杀的实现文件。\n")
+        print(f"扫描完成: 检查了 {len(source_files)} 个被丢弃的源文件")
+        print(f"\n[符号匹配报告] 发现 {len(suspicious_files)} 个可疑文件")
+        print("   说明: 这些被丢弃的文件包含大量保留头文件中的符号，")
+        print("      可能是被误过滤的实现文件\n")
         
         if suspicious_files:
-            print(f"📋 Top 20 可疑文件 (按符号匹配数排序):")
+            print(f"Top 20 可疑文件 (按符号匹配数排序):")
             print("-" * 70)
             for i, item in enumerate(suspicious_files[:20], 1):
                 file_name = os.path.basename(item['file'])
-                print(f"   {i:2d}. 🚩 [{item['hit_count']:2d} 个符号] {file_name}")
-                print(f"       📁 {item['file']}")
+                print(f"   {i:2d}. [可疑] [{item['hit_count']:2d} 个符号] {file_name}")
+                print(f"       [路径] {item['file']}")
                 if item['matched_symbols']:
                     symbols_str = ', '.join(item['matched_symbols'][:5])
                     if len(item['matched_symbols']) > 5:
                         symbols_str += f" ... (+{len(item['matched_symbols'])-5} 个)"
-                    print(f"       🔑 匹配符号: {symbols_str}")
+                    print(f"       [匹配符号] {symbols_str}")
                 print()
         else:
-            print("   ✅ 未发现可疑文件（所有被丢弃的文件都没有大量匹配保留头文件的符号）")
+            print("   [通过] 未发现可疑文件（所有被丢弃的文件都没有大量匹配保留头文件的符号）")
         
         print(f"{'='*70}")
-        print(f"✅ [CONTENT AUDIT] 内容审计完成")
+        print("内容审计完成")
         print(f"{'='*70}\n")
         
         return symbol_fingerprints, [(item['file'], item['hit_count']) for item in suspicious_files]
+
+
 
