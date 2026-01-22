@@ -32,9 +32,11 @@ def app():
     # 注册蓝图
     from app.User import User
     from app.Project import Project
+    from app.Analysis import Analysis
 
     app.register_blueprint(User, url_prefix="/user")
     app.register_blueprint(Project, url_prefix="/project")
+    app.register_blueprint(Analysis, url_prefix="/analysis")
 
     return app
 
@@ -87,6 +89,38 @@ class TestProjectIntegration:
             url="/project/delete",
             data={"project_id": str(project_id)},
         )
+
+    def test_analysis_basic(self, test_client):
+        headers = user_init(TEST_DIR, test_client)
+        project_1 = make_a_zip(
+            zip_base_name="project_1",
+            zip_content=["src/hello.cpp", "graph/", "hello/"],
+        )
+        make_a_post(
+            test_client=test_client,
+            headers=headers,
+            url="/project/add",
+            data={"file": project_1},
+        )
+        make_a_post(
+            test_client=test_client,
+            headers=headers,
+            url="/analysis/analysis",
+            data={"project_id": str(1)},
+        )
+        import time
+
+        while True:
+            r = make_a_get(
+                test_client=test_client,
+                headers=headers,
+                url="/analysis/progress",
+                data={"task_id": str(1)},
+            )
+            print(f"query once==>{r['progress']}")
+            if r["progress"] == 100:
+                break
+            time.sleep(1)
 
     def test_project_end_to_end_flow_project(self, test_client):
         """测试的完整项目流程：

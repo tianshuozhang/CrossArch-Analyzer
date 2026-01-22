@@ -26,10 +26,10 @@ def execute_close_project(user_id: int, project_id: int):
 
 def execute_open_project(user_id: int, project_id: int):
     # === 1. 如果用户已打开的和要打开的项目一样，那么直接返回 ===
+    opened_project_id = user_db.get_opened_project_id(user_id)
     if opened_project_id == project_id:
         return True
     # === 2. 检查用户是否有已打开的项目，如果有，那么关闭它 ===
-    opened_project_id = user_db.get_opened_project_id(user_id)
     if opened_project_id is not None and opened_project_id != 0:
         execute_close_project(user_id, project_id)
 

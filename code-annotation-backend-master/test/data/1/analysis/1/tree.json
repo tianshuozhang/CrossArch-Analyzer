@@ -1,0 +1,34 @@
+[
+  {
+    "name": "content",
+    "type": "dir",
+    "children": [
+      {
+        "name": "graph",
+        "type": "dir",
+        "children": []
+      },
+      {
+        "name": "hello",
+        "type": "dir",
+        "children": []
+      },
+      {
+        "name": "src",
+        "type": "dir",
+        "children": [
+          {
+            "name": "hello.cpp",
+            "type": "file",
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "graph",
+    "type": "dir",
+    "children": []
+  }
+]

@@ -58,8 +58,12 @@ def path_dir_analysis(user_id: int):
     return os.path.join(path_dir_user(user_id), "analysis")
 
 
-def path_dir_analysis_project(user_id: int, project_id: int):
-    return os.path.join(path_dir_analysis(user_id), f"{project_id}")
+def path_dir_analysis_task(user_id: int, task_id: int):
+    return os.path.join(path_dir_analysis(user_id), f"{task_id}")
+
+
+def path_file_analysis_task_result(user_id: int, task_id: int):
+    return os.path.join(path_dir_analysis_task(user_id, task_id), "result.json")
 
 
 # =======================================================================================================================

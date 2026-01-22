@@ -10,6 +10,7 @@ from utils.file import execute_read_file_data
 from utils.path import *
 from utils.zip import *
 from utils.relation import relations_to_arch_line_relations
+from utils.analysis import execute_analysis
 
 from db.db_user import UserDB
 from db.db_task import TaskDB
@@ -90,11 +91,12 @@ def ask(user_id: int):
         )
 
     # === 3. 启动分析任务 ===
-    from LLM.api import orchestrator
+    # from LLM.api import orchestrator
 
-    answer = orchestrator.ask(
-        question=question, project_root=path_dir_open_content(user_id)
-    )
+    # answer = orchestrator.ask(
+    #     question=question, project_root=path_dir_open_content(user_id)
+    # )
+    answer = None
 
     # === 4. 答案中，如果graph非空，那么保存graph到打开目录里 ===
     if answer["graph"]:
@@ -140,17 +142,24 @@ def ask(user_id: int):
     )
 
 
-@Analysis.route("/analysis", methods=["POST"])
+@Analysis.route("/fetch", methods=["GET"])
 @token_required
-def analysis(user_id: int):
-    # === 1. 获取要分析的项目ID ===
-    project_id = request.form.get("project_id")
+def fetch(user_id: int):
+    # === 1. 获取项目ID和任务ID ===
+    project_id = request.args.get("project_id")
     if not project_id:
         return (
             jsonify({"state": "failed", "description": "请提供项目ID", "rst": None}),
             400,
         )
     project_id = int(project_id)
+    task_id = request.args.get("task_id")
+    if not task_id:
+        return (
+            jsonify({"state": "failed", "description": "请提供任务ID", "rst": None}),
+            400,
+        )
+    task_id = int(task_id)
     cur_open_file_path = request.form.get("file_path")
     if cur_open_file_path is None:
         return (
@@ -164,28 +173,27 @@ def analysis(user_id: int):
             400,
         )
 
-    # === 2. 将项目复制到analysis目录下，如果是当前项目，就复制，如果是其他项目，就解压 ===
-    opened_project_id = user_db.get_opened_project_id(user_id=user_id)
-    analysis_project_root = path_dir_analysis_project(user_id, project_id)
-    if opened_project_id == project_id:
-        shutil.copytree(path_dir_open_content(user_id=user_id), analysis_project_root)
-    else:
-        zip_extract_file_to(
-            src_zip_path=path_file_save_zip(user_id, project_id),
-            dst_dir_path=analysis_project_root,
+    # === 2. 检查任务进度是否为100% ===
+    if task_db.get_task_progress(task_id) != 100:
+        return (
+            jsonify(
+                {
+                    "state": "failed",
+                    "description": "任务未完成，请稍后再试",
+                    "rst": {},
+                }
+            ),
+            400,
         )
 
-    # === 3. 启动分析任务 ===
-    from LLM.api import orchestrator
-
-    task_id = task_db.add_task(user_id)
-    analysis_result = orchestrator.analyze(
-        project_root=analysis_project_root,
-        task_id=task_id,
-    )
-
-    # === 4. 将文件分析报告保存到json里，将架构标记结果记录到数据库里，并删除这个分析任务 ===
-    with zipfile.ZipFile(path_dir_save(user_id=user_id), "w") as zip_file:
+    # === 3. 取出任务结果，并删除分析目录 ===
+    with open(path_file_analysis_task_result(user_id, task_id), "r") as f:
+        analysis_result = json.load(f)
+    shutil.rmtree(path_dir_analysis_task(user_id, task_id))
+    # === 4. 将文件分析报告保存到json里，将架构标记结果记录到数据库里 ===
+    with zipfile.ZipFile(
+        path_file_save_zip(user_id=user_id, project_id=project_id), "w"
+    ) as zip_file:
         report_content = analysis_result["report"]
         zip_file.writestr("report.json", report_content)
 
@@ -211,10 +219,10 @@ def analysis(user_id: int):
             project_id=project_id,
             file_id=file_id,
         )
-
+    # === 5. 删除任务 ===
     task_db.delete_task(task_id)
-
-    # === 5. 读取当前打开文件的内容并返回 ===
+    # === 6. 读取当前打开文件的内容并返回 ===
+    opened_project_id = user_db.get_opened_project_id(user_id=user_id)
     if cur_open_file_path == "":
         return (
             jsonify(
@@ -261,6 +269,48 @@ def analysis(user_id: int):
                 ),
                 200,
             )
+
+
+@Analysis.route("/analysis", methods=["POST"])
+@token_required
+def analysis(user_id: int):
+    # === 1. 获取要分析的项目ID ===
+    project_id = request.form.get("project_id")
+    if not project_id:
+        return (
+            jsonify({"state": "failed", "description": "请提供项目ID", "rst": None}),
+            400,
+        )
+    project_id = int(project_id)
+
+    # === 2. 将项目复制到analysis目录下，如果是当前项目，就复制，如果是其他项目，就解压 ===
+    task_id = task_db.add_task(project_id)
+    opened_project_id = user_db.get_opened_project_id(user_id=user_id)
+    analysis_project_root = path_dir_analysis_task(user_id, task_id)
+    if opened_project_id == project_id:
+        shutil.copytree(path_dir_open_content(user_id=user_id), analysis_project_root)
+    else:
+        zip_extract_file_to(
+            src_zip_path=path_file_save_zip(user_id, project_id),
+            dst_dir_path=analysis_project_root,
+        )
+
+    # === 3. 启动分析任务 ===
+    execute_analysis(task_id=task_id, user_id=user_id)
+
+    # === 4. 返回结果 ===
+    return (
+        jsonify(
+            {
+                "state": "success",
+                "description": "success",
+                "rst": {
+                    "task_id": task_id,
+                },
+            }
+        ),
+        200,
+    )
 
 
 @Analysis.route("/report", methods=["POST"])

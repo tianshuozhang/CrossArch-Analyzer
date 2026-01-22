@@ -92,7 +92,6 @@ def make_a_post(
         content_type="multipart/form-data",
         headers=headers,
     )
-    assert response.status_code in [200, 201]
     json_data = response.get_json()
     for print_item in print_content:
         start = json_data["rst"][print_item[0]]
@@ -101,6 +100,7 @@ def make_a_post(
             prefix += f"[{name}]"
             start = start[name]
         print(f"{prefix}={start}")
+    assert response.status_code in [200, 201]
     for assert_item in assert_content:
         left = assert_item[0]
         right = json_data["rst"][assert_item[1]]

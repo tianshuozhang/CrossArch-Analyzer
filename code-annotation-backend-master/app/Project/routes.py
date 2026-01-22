@@ -32,10 +32,10 @@ def _register_project_and_save(
 
     if ext == ".zip":
         # === 如果是zip，先解压整理好目录结构，然后压缩到对应位置 ===
-        extract_root_path = path_dir_extract(user_id, project_id)
+        extract_root_path = path_dir_extract(user_id)
         path_tool_clean_dir(extract_root_path)
         zip_extract_fileStorage_to(file, path_dir_extract_content(user_id))
-        os.makedirs(path_dir_extract_graph(user_id, project_id))
+        os.makedirs(path_dir_extract_graph(user_id))
         zip_pack_dir_to(
             src_root_dir_path=extract_root_path,
             dst_zip_path=path_file_save_zip(user_id, project_id),
