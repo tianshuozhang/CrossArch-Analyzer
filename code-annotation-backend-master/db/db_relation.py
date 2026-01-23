@@ -108,8 +108,13 @@ class RelationDB(DBc):
         self.execute(sql, (value, file_id, project_id, line, line))
         return self.cursor.rowcount > 0
 
-    def get_relation_include_line(self, file_id: int, project_id: int, line: int):
+    def get_relation_include_line(
+        self, file_id: int, project_id: int, line: int
+    ) -> dict | None:
         """查询文件下包含某行的关系"""
         sql = f"SELECT start,end FROM snippet_arch_tag_relations WHERE file_id = %s AND project_id = %s AND start <= %s AND end >= %s"
         self.execute(sql, (file_id, project_id, line, line))
-        return self.cursor.fetchone()
+        result = self.cursor.fetchone()
+        if result:
+            result = self._map_results([result])[0]
+        return result

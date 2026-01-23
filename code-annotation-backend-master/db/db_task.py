@@ -17,6 +17,7 @@ class TaskDB(DBc):
             `id` BIGINT PRIMARY KEY AUTO_INCREMENT NOT NULL UNIQUE,
             `project_id` BIGINT NOT NULL,
             `progress` INT DEFAULT 0,
+            `killed` TINYINT(1) DEFAULT 0,
             `created_at` DATETIME NOT NULL,
             `updated_at` DATETIME NOT NULL,
             FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON DELETE CASCADE
@@ -57,3 +58,20 @@ class TaskDB(DBc):
         """删除任务"""
         sql = "DELETE FROM tasks WHERE id = %s"
         self.execute(sql, (task_id,))
+
+    def set_task_killed(self, task_id: int):
+        """设置任务取消"""
+        sql = "UPDATE tasks SET killed = 1 WHERE id = %s"
+        self.execute(sql, (task_id,))
+
+    def get_task_killed(self, task_id: int) -> bool:
+        """获取任务是否有设置取消"""
+        sql = "SELECT killed FROM tasks WHERE id = %s"
+        self.execute(sql, (task_id,))
+        result = self.cursor.fetchone()
+        return result["killed"] if result else False
+
+    def clear_task_killed(self):
+        """清除任务取消状态"""
+        sql = "UPDATE tasks SET killed = 0"
+        self.execute(sql)

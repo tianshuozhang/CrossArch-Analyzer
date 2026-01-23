@@ -35,10 +35,7 @@ def open_file(user_id: int):
             {
                 "state": "success",
                 "description": "成功",
-                "rst": {
-                    "file_content": file_data["file_content"],
-                    "line_arch_tags": file_data["line_arch_tags"],
-                },
+                "rst": {"file_data": file_data},
             }
         ),
         200,
@@ -55,27 +52,16 @@ def save_file(user_id: int):
             jsonify({"state": "fail", "description": "没有提供文件路径", "rst": {}}),
             404,
         )
-
-    file_content = request.form.get("file_content")
-    if not file_content:
+    file_data = request.form.get("file_data")
+    if not file_data:
         return (
             jsonify(
                 {"state": "fail", "description": "没有提供要保存文件内容", "rst": {}}
             ),
             404,
         )
-    line_arch_tags = request.form.get("line_arch_tags")
-    if line_arch_tags is None:
-        return (
-            jsonify({"state": "fail", "description": "没有提供文件行标签", "rst": {}}),
-            404,
-        )
-    line_arch_tags = json.loads(line_arch_tags)
-
     # === 2. 执行保存文件 ===
-    if not execute_save_file_data(
-        user_id, rela_file_path, file_content, line_arch_tags
-    ):
+    if not execute_save_file_data(user_id, rela_file_path, file_data):
         return jsonify({"state": "fail", "description": "保存文件内容失败", "rst": {}})
     # === 3. 返回成功 ===
     return jsonify({"state": "success", "description": "成功", "rst": {}}), 200
@@ -91,8 +77,14 @@ def cancel_change_file(user_id: int):
             jsonify({"state": "fail", "description": "没有提供文件路径", "rst": {}}),
             404,
         )
-
-    file_id = file_db.get_file_id_by_file_path(rela_file_path)
+    opened_project_id = user_db.get_opened_project_id(user_id)
+    if not opened_project_id:
+        print("用户没有打开项目")
+        return (
+            jsonify({"state": "fail", "description": "用户没有打开项目", "rst": {}}),
+            404,
+        )
+    file_id = file_db.get_file_id_by_file_path(rela_file_path, opened_project_id)
     if not file_id:
         return (
             jsonify({"state": "fail", "description": "没有找到该文件", "rst": {}}),
@@ -143,41 +135,28 @@ def cancel_change_file(user_id: int):
 @File.route("/close", methods=["POST"])
 @token_required
 def close_file(user_id: int):
-    # === 1. 解析前端参数file_path, file_content ===
+    # === 1. 解析前端参数file_path, file_data ===
     rela_file_path = request.form.get("file_path")
     if not rela_file_path:
         return (
             jsonify({"state": "fail", "description": "没有提供文件路径", "rst": {}}),
             404,
         )
-    file_content = request.form.get("file_content")
-    if file_content is None:
+    file_data = request.form.get("file_data")
+    if not file_data:
         return (
             jsonify(
-                {
-                    "state": "fail",
-                    "description": "没有提供要保存文件内容，如果文件内容为空，那么需要提供一个空的字符串",
-                    "rst": {},
-                }
+                {"state": "fail", "description": "没有提供要保存文件内容", "rst": {}}
             ),
             404,
         )
-    line_arch_tags = request.form.get("line_arch_tags")
-    if line_arch_tags is None:
-        return (
-            jsonify({"state": "fail", "description": "没有提供文件行标签", "rst": {}}),
-            404,
-        )
-    line_arch_tags = json.loads(line_arch_tags)
-
     # === 2. 执行保存文件 ===
-    if not execute_save_file_data(
-        user_id, rela_file_path, file_content, line_arch_tags
-    ):
+    if not execute_save_file_data(user_id, rela_file_path, file_data):
         return jsonify({"state": "fail", "description": "保存文件内容失败", "rst": {}})
 
     # === 3. 删除该文件对应的临时文件目录，并且清零临时文件计数 ===
-    file_id = file_db.get_file_id_by_file_path(rela_file_path)
+    opened_project_id = user_db.get_opened_project_id(user_id)
+    file_id = file_db.get_file_id_by_file_path(rela_file_path, opened_project_id)
     if not file_id:
         return (
             jsonify({"state": "fail", "description": "没有找到该文件", "rst": {}}),

@@ -6,8 +6,13 @@ import time, json, threading
 
 task_db = TaskDB()
 
-# def _all_llm(project_root: str, task_id: int, analysis_project_root):
+import os, sys
+
+sys.path.append(os.path.join(os.getcwd(), ".."))
 #     from LLM.api import orchestrator
+
+
+# def _all_llm(project_root: str, task_id: int, analysis_project_root):
 
 #     analysis_result = orchestrator.analyze(
 #         project_root=analysis_project_root,
@@ -33,3 +38,10 @@ def execute_analysis(
         target=_test_long_sleep,
         args=(task_id, output_path),
     ).start()
+
+
+def execute_ask(question: str, user_id: int):
+    # answer = orchestrator.ask(
+    #     question=question, project_root=path_dir_open_content(user_id)
+    # )
+    return None

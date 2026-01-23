@@ -272,7 +272,7 @@ def close_project(user_id: int):
     )
 
 
-@Project.route("/get-tree", methods=["GET"])
+@Project.route("/get_tree", methods=["GET"])
 @token_required
 def get_project_tree(user_id: int):
     # === 1. 读取项目ID ===

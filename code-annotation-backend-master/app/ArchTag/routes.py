@@ -92,18 +92,6 @@ def modify_arch_tag(user_id: int):
             )
 
     # === 3. 获取当前文件id，修改对应的relation
-    file_id = file_db.get_file_id_by_file_path(file_path)
-    if not file_id:
-        return (
-            jsonify(
-                {
-                    "state": "fail",
-                    "description": "当前文件不存在",
-                    "rst": {},
-                }
-            ),
-            400,
-        )
     opened_project_id = user_db.get_opened_project_id(user_id)
     if not opened_project_id:
         return (
@@ -111,6 +99,18 @@ def modify_arch_tag(user_id: int):
                 {
                     "state": "fail",
                     "description": "当前用户没有打开项目",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
+    file_id = file_db.get_file_id_by_file_path(file_path, opened_project_id)
+    if not file_id:
+        return (
+            jsonify(
+                {
+                    "state": "fail",
+                    "description": "当前文件不存在",
                     "rst": {},
                 }
             ),

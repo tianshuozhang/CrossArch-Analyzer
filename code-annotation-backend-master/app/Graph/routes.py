@@ -23,7 +23,7 @@ def get_list(user_id: int):
             jsonify({"state": "fail", "description": "没有提供项目ID", "rst": {}}),
             400,
         )
-
+    project_id = int(project_id)
     # === 2. 读取图数据的title并返回 ===
     graphs = graph_db.get_all_visualization_data_title_id_list(project_id)
     return (
@@ -54,6 +54,7 @@ def get_graph(user_id: int):
             ),
             400,
         )
+    graph_id = int(graph_id)
     # === 2. 读取图文件数据 ===
     opened_project_id = user_db.get_opened_project_id(user_id)
     if not opened_project_id:
@@ -81,7 +82,7 @@ def get_graph(user_id: int):
             {
                 "state": "success",
                 "description": "成功",
-                "rst": {"graph_data": graph_data},
+                "rst": {"option": graph_data},
             }
         ),
         200,

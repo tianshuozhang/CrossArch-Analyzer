@@ -54,21 +54,12 @@ class FileDB(DBc):
         self.execute(sql, (name, now, project_id, path))
         return self.cursor.lastrowid
 
-    def get_file_id_by_file_path(self, file_path: str) -> int | None:
+    def get_file_id_by_file_path(self, file_path: str, project_id: int) -> int | None:
         """根据文件路径获取文件ID"""
         sql = "SELECT id FROM files WHERE path = %s"
         self.execute(sql, (file_path))
         result = self.cursor.fetchone()
         return result["id"] if result else None
-
-    def get_files_with_path_prefix(
-        self, project_id: int, path_prefix: str
-    ) -> List[Dict]:
-        """获取指定项目下，路径以path_prefix开头的所有文件/目录记录"""
-        sql = "SELECT * FROM files WHERE project_id = %s AND path LIKE %s ORDER BY path"
-        like_pattern = f"{path_prefix}%"
-        self.execute(sql, (project_id, like_pattern))
-        return self.cursor.fetchall()
 
     def get_file_path_by_id(self, file_id: int) -> Optional[str]:
         """根据文件ID获取文件路径"""

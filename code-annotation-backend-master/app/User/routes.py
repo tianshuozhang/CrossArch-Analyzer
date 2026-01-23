@@ -167,7 +167,7 @@ def register():
             jsonify(
                 {
                     "state": "fail",
-                    "description": "后端注册用户失败",
+                    "description": "服务器异常",
                     "rst": {},
                 }
             ),
