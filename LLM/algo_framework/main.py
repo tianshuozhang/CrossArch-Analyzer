@@ -10,7 +10,7 @@ def main(project_root):
     orig_file_paths, file_paths = PreScreener.prescreen(project_root)
     file_tagTarget_relations = CodeRewriter.rewrite(
         file_paths,
-        *ph.map_out_tuple(file_paths, sct.scan_file, use_path=True),
+            *ph.map_out_tuple(file_paths, sct.scan_file, use_path=True),
     )
     file_analysis_results = CodeAnalyzer.analyze(
         file_paths,
@@ -21,3 +21,7 @@ def main(project_root):
         file_analysis_results, file_paths, orig_file_paths
     )
     return file_analysis_results
+
+if __name__ == "__main__":
+    project_root = "LLM/config/eigen"
+    main(project_root)

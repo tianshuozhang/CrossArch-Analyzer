@@ -33,8 +33,10 @@ def map_out_tuple(
 ) -> tuple[list[FileResultDict], ...]:
     fileResultDictTuple = []
     for file_path in file_paths:
+        print(file_path)
         parsed_args = _make_map_args(file_path, args)
         path_arg = (file_path,) if use_path else ()
+        
         result_tuple = func(path_arg + parsed_args)
         if not fileResultDictTuple:
             for result in result_tuple:

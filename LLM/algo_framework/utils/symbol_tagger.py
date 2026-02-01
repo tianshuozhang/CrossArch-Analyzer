@@ -1,4 +1,4 @@
-from algo_framework.utils.data_structures import *
+from utils.data_structures import *
 from typing import List, Dict
 import re
 import json

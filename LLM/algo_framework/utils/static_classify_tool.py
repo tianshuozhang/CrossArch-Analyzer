@@ -1,8 +1,9 @@
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Set, NamedTuple
 from tree_sitter import Node as TSNode
+import sys
+sys.path.append('LLM/')
 
-from algo_framework.utils.data_structures import *
 from algo_framework.utils.ts_helper import (
     TSTypes,
     SExpressionTemplate,
@@ -13,6 +14,8 @@ from algo_framework.utils.ts_helper import (
 )
 from algo_framework.utils.code_processor import remove_regex
 
+
+from algo_framework.utils.data_structures import *
 
 class NodeType(Enum):
     TAGTARGET = "tagtarget"
@@ -99,6 +102,7 @@ def _pack_errors(error_tsNodes: List[TSNode]) -> TreeSitterOutput:
             errror_tsNode, ["function_definition", "expression_statement"]
         )
         if content_tsNode is None:
+            continue
             raise NotImplementedError(f"遇到了没有考虑到的情况：{str(errror_tsNode)}")
         error_snippets.append(
             ErrorSnippet(
@@ -159,6 +163,7 @@ def _prepare(
                         )
                 # 定义枚举类型的句子不在考虑范围内
                 elif sentence_tsNode.type not in [TSTypes.ENUM_DEF]:
+                    continue
                     raise RuntimeError(
                         f"""
     出现了没有考虑到的情况：
@@ -422,10 +427,14 @@ def _make_collected_exprs_link(
             for line in lines:
                 tagTarget_codeNode = _find_tagTarget_include_line(line)
                 if tagTarget_codeNode:
+                    print(f"链接预处理符号 {expr_name} 到标记目标 {tagTarget_codeNode.text}")
+                    # tagTarget_codeNode.linkTo(
+                    #     [CodeNode(name=expr_name, syntax=syntax_type)]
+                    # )
                     tagTarget_codeNode.linkTo(
-                        [CodeNode(name=expr_name, syntax=syntax_type)]
+                        [LinkableCodeNode(text=expr_name, nodeType=NodeType.OUTERSYMBOL, syntaxType=syntax_type)]
                     )
-
+                    
 
 def _pack_analysis_result(codeNode_graph: dict[str | int, LinkableCodeNode]):
     """把符号表和预处理提取的符号关系整理成关系的输出格式"""
@@ -496,14 +505,15 @@ def scan_code(code: str) -> TreeSitterOutput:
     return result
 
 
-def scan_file(file_path: str) -> TreeSitterOutput:
-    with open(file_path, "r") as f:
+def scan_file(file_path: tuple[str, ...]) -> TreeSitterOutput:
+    with open(file_path, "r", encoding="gbk", errors="ignore") as f:
         return scan_code(f.read())
 
 
+    
 if __name__ == "__main__":
-    file_path = "testcase.h"
-    output = scan_file(file_path)
+    file_path = "LLM/config/eigen/Eigen/src/Core/arch/NEON/PacketMath.h"
+    output = scan_file((file_path,))
     import json
 
     with open("output.json", "w") as f:

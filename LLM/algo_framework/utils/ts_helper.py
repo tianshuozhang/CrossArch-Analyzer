@@ -317,10 +317,10 @@ def findAncestorUntil(ts_node: TSNode, endTypes: List[str]):
     ret = ts_node
     p = ret
     while ret:
+        if ret.type == "translation_unit":
+            return p
         if ret.type in endTypes:
             return ret
         ret = ret.parent
         p = ret
-        if ret.type == "translation_unit":
-            return p
-    raise ValueError(f"{p.type}")
+    # raise ValueError(f"{p.type}")

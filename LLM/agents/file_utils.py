@@ -61,15 +61,14 @@ class FileScanner:
                 file_path = root_path / file
                 if not file_path.is_file():
                     continue
-                relative_path = str(file_path.relative_to(self.project_path))
-                
+                # relative_path = str(file_path.relative_to(self.project_path))
                 # 分类文件
                 if file in self.BUILD_FILES:
-                    result['build_files'].append(relative_path)
+                    result['build_files'].append(file_path)
                 elif file in self.DOC_FILES:
-                    result['doc_files'].append(relative_path)
+                    result['doc_files'].append(file_path)
                 elif file_path.suffix in self.SOURCE_EXTENSIONS:
-                    result['source_files'].append(relative_path)
+                    result['source_files'].append(file_path)
         
         return result
     
@@ -255,7 +254,8 @@ class ArchitectureHeuristics:
         reasons = []
         
         # 检查路径
-        file_path_lower = file_path.lower()
+        file_path_lower = str(file_path).lower()
+
         for keyword in ArchitectureHeuristics.ARCH_PATH_KEYWORDS:
             if keyword in file_path_lower:
                 reasons.append(f"路径包含架构关键词: {keyword}")
