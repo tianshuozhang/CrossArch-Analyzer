@@ -24,7 +24,7 @@ if __name__ == "__main__":
     files_content = file_scanner.batch_read_files(pre_screened)
 
     # 初始化编码模型
-    embedding_model = SentenceTransformer("./LLM/models/all-MiniLM-L6-v2", device='cuda')
+    embedding_model = SentenceTransformer("./LLM/models/all-MiniLM-L6-v2", device='cpu')
     # 初始化向量数据库
     dimension = embedding_model.get_sentence_embedding_dimension()
 

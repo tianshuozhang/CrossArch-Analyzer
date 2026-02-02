@@ -481,6 +481,8 @@ def _pack_analysis_result(codeNode_graph: dict[str | int, LinkableCodeNode]):
 
 
 def scan_code(code: str) -> TreeSitterOutput:
+    if isinstance(code, tuple):
+        code = code[0]
     import time
 
     start = time.time()
@@ -506,7 +508,7 @@ def scan_code(code: str) -> TreeSitterOutput:
 
 
 def scan_file(file_path: tuple[str, ...]) -> TreeSitterOutput:
-    with open(file_path, "r", encoding="gbk", errors="ignore") as f:
+    with open(file_path[0], "r", encoding="gbk", errors="ignore") as f:
         return scan_code(f.read())
 
 

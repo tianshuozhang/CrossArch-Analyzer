@@ -7,7 +7,9 @@ import utils.static_classify_tool as sct
 
 
 def main(project_root):
-    orig_file_paths, file_paths = PreScreener.prescreen(project_root)
+    # orig_file_paths, file_paths = PreScreener.prescreen(project_root)
+    orig_file_paths = []
+    file_paths = ["LLM/config/test.h"]
     file_tagTarget_relations = CodeRewriter.rewrite(
         file_paths,
             *ph.map_out_tuple(file_paths, sct.scan_file, use_path=True),

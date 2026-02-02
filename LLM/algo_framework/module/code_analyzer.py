@@ -52,12 +52,16 @@ class CodeAnalyzer:
         file_tree_sitter_analysis_result: FileResultDict[TreeSitterAnalysisResult],
         _,
     ) -> FileResultDict[dict[tuple[int, int], set[str]]]:
+        
+        def merge_tagTarget_relations(args):
+            tagTarget_relations, tree_sitter_analysis_result = args
+            merged_tagTarget_relations = tree_sitter_analysis_result.tagTarget_relations + tagTarget_relations
+            merged_symbol_relations = tree_sitter_analysis_result.symbol_relations
+            return merged_tagTarget_relations, merged_symbol_relations
+
         file_tagTarget_relations, file_symbol_relations = ph.map_out_tuple(
             file_paths,
-            lambda tagTarget_relations, tree_sitter_analysis_result: (
-                tree_sitter_analysis_result.tagTarget_relations + tagTarget_relations,
-                tree_sitter_analysis_result.symbol_relations,
-            ),
+            merge_tagTarget_relations,
             file_tagTarget_relations,
             file_tree_sitter_analysis_result,
         )
