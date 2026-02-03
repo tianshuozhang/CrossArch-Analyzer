@@ -1,0 +1,181 @@
+tree-sitter log：
+-----------------------------------------------------------------------------------------------------------------
+
+预处理完成, 耗时：0.01106119155883789s
+解析完成, 耗时：0.1210169792175293s
+错误数量：1109
+错误片段：EIGEN_STRONG_INLINE Packet4f pmadd(const Packet4f& a, const Packet4f& b, const Packet4f& c) {
+  return vmlaq_f32(c, a, b);
+}
+
+================
+
+预处理完成, 耗时：0.010319232940673828s
+解析完成, 耗时：0.08879280090332031s
+错误数量：180
+错误片段：inline Packet8s pload<Packet8s>(const int16_t* from) {
+  EIGEN_ASSUME_ALIGNED(from, unpacket_traits<Packet8s>::alignment);
+  EIGEN_DEBUG_ALIGNED_LOAD return vld1q_s16(from);
+}
+
+================
+
+预处理完成, 耗时：0.01017308235168457s
+解析完成, 耗时：0.08834385871887207s
+错误数量：161
+错误片段：EIGEN_ALWAYS_INLINE void zip_in_place<Packet16c>(Packet16c& p1, Packet16c& p2) {
+  const int8x16x2_t tmp = vzipq_s8(p1, p2);
+  p1 = tmp.val[0];
+  p2 = tmp.val[1];
+}
+
+================
+
+预处理完成, 耗时：0.009055137634277344s
+解析完成, 耗时：0.0661163330078125s
+错误数量：136
+错误片段：inline void ptranspose_impl(PacketBlock<Packet, 16>& kernel) {
+  EIGEN_UNROLL_LOOP
+  for (int i = 0; i < 4; ++i) {
+    const int m = (1 << i);
+    EIGEN_UNROLL_LOOP
+    for (int j = 0; j < m; ++j) {
+      const int n = (1 << (3 - i));
+      EIGEN_UNROLL_LOOP
+      for (int k = 0; k < n; ++k) {
+        const int idx = 2 * j * n + k;
+        zip_in_place(kernel.packet[idx], kernel.packet[idx + n]);
+      }
+    }
+  }
+}
+
+================
+
+预处理完成, 耗时：0.009420156478881836s
+解析完成, 耗时：0.06950998306274414s
+错误数量：130
+错误片段：EIGEN_DEVICE_FUNC inline Packet8uc pgather<uint8_t, Packet8uc>(const uint8_t* from, Index stride) {
+  Packet8uc res = vld1_dup_u8(from);
+  res = vld1_lane_u8(from + 1 * stride, res, 1);
+  res = vld1_lane_u8(from + 2 * stride, res, 2);
+  res = vld1_lane_u8(from + 3 * stride, res, 3);
+  res = vld1_lane_u8(from + 4 * stride, res, 4);
+  res = vld1_lane_u8(from + 5 * stride, res, 5);
+  res = vld1_lane_u8(from + 6 * stride, res, 6);
+  res = vld1_lane_u8(from + 7 * stride, res, 7);
+  return res;
+}
+
+================
+
+预处理完成, 耗时：0.009695291519165039s
+解析完成, 耗时：0.061749935150146484s
+错误数量：26
+错误片段：inline Packet2i ploadu<Packet2i>(const int32_t* from) {
+  EIGEN_DEBUG_UNALIGNED_LOAD return vld1_s32(from);
+}
+
+================
+
+预处理完成, 耗时：0.012833118438720703s
+解析完成, 耗时：0.07526803016662598s
+错误数量：7
+错误片段：inline void ptranspose(PacketBlock<Packet4hf, 4>& kernel) {
+  EIGEN_ALIGN16 float16x4x4_t tmp_x4;
+  float16_t* tmp = (float16_t*)&kernel;
+  tmp_x4 = vld4_f16(tmp);
+
+  kernel.packet[0] = tmp_x4.val[0];
+  kernel.packet[1] = tmp_x4.val[1];
+  kernel.packet[2] = tmp_x4.val[2];
+  kernel.packet[3] = tmp_x4.val[3];
+}
+
+================
+
+预处理完成, 耗时：0.00930166244506836s
+解析完成, 耗时：0.05840468406677246s
+错误数量：6
+错误片段：EIGEN_MAKE_ARM_FP16_CMP_8(eq)
+
+================
+
+预处理完成, 耗时：0.010342597961425781s
+解析完成, 耗时：0.06488656997680664s
+错误数量：3
+错误片段：EIGEN_MAKE_ARM_FP16_CMP_4(eq)
+
+================
+
+预处理完成, 耗时：0.010775566101074219s
+解析完成, 耗时：0.07520914077758789s
+预处理完成, 耗时：0.00931239128112793s
+解析完成, 耗时：0.06009840965270996s
+符号表完成, 耗时：16.878321647644043s
+条件宏链接完成, 耗时：16.94136619567871s
+标记目标链接完成, 耗时：32.45824718475342s
+用户定义符号链接完成, 耗时：40.718181133270264s
+预处理符号链接完成, 耗时：40.71820569038391s
+打包结果完成, 耗时：40.72546911239624s
+错误数量：0
+
+-----------------------------------------------------------------------------------------------------------------
+
+
+LLM log：
+-----------------------------------------------------------------------------------------------------------------
+
+大模型的响应内容是：
+删除第 1 行的 EIGEN_STRONG_INLINE。
+平均花了0.9779982566833496s
+
+================
+
+大模型的响应内容是：
+删除第 3 行的 EIGEN_DEBUG_ALIGNED_LOAD。
+平均花了2.0095112323760986s
+
+================
+
+大模型的响应内容是：
+删除第 1 行的 EIGEN_ALWAYS_INLINE。
+平均花了2.3321526050567627s
+
+================
+
+大模型的响应内容是：
+删除第 2 行的 EIGEN_UNROLL_LOOP。
+删除第 5 行的 EIGEN_UNROLL_LOOP。
+删除第 8 行的 EIGEN_UNROLL_LOOP。
+平均花了1.9235498905181885s
+
+================
+
+大模型的响应内容是：
+删除第 1 行的 EIGEN_DEVICE_FUNC。
+平均花了1.1778333187103271s
+
+================
+
+大模型的响应内容是：
+删除第 2 行的 EIGEN_DEBUG_UNALIGNED_LOAD。
+平均花了1.2954485416412354s
+
+==============
+
+大模型的响应内容是：
+删除第 2 行的 EIGEN_ALIGN16。
+平均花了1.039926528930664s
+
+=============
+
+大模型的响应内容是：
+在第 1 行的 EIGEN_MAKE_ARM_FP16_CMP_8(eq) 调用末尾添加分号。
+平均花了1.5195198059082031s
+
+=============
+
+大模型的响应内容是：
+在第 1 行的 EIGEN_MAKE_ARM_FP16_CMP_4(...) 调用末尾添加分号。
+平均花了1.4346721172332764s
