@@ -1,8 +1,7 @@
-from utils.data_structures import *
-import utils.project_helper as ph
+from algo_framework.utils.data_structures import *
+import algo_framework.utils.project_helper as ph
+from algo_framework.utils.symbol_tagger import tag_symbol
 import networkx as nx
-from functools import reduce
-from utils.symbol_tagger import tag_symbol
 
 
 class CodeAnalyzer:
@@ -36,6 +35,21 @@ class CodeAnalyzer:
         for top_node in top_nodes:
             tag_symbol(nodes[top_node])
 
+        def remove_cycles(G):
+            """原地修改图 G，移除边直到无环（简单粗暴版）"""
+            while True:
+                try:
+                    # 尝试找一个环
+                    cycle = nx.find_cycle(G, orientation="original")
+                    # 粗暴策略：删除环中的最后一条边（或第一条）
+                    u, v = cycle[-1][:2]  # 取最后一个边 (u -> v)
+                    print(f"Removing edge {u} -> {v} to break cycle")
+                    G.remove_edge(u, v)
+                except nx.NetworkXNoCycle:
+                    break  # 无环了，退出
+
+        remove_cycles(G)
+
         def _broadcast():
             for name in nx.topological_sort(G):
                 node = nodes[name]
@@ -52,10 +66,12 @@ class CodeAnalyzer:
         file_tree_sitter_analysis_result: FileResultDict[TreeSitterAnalysisResult],
         _,
     ) -> FileResultDict[dict[tuple[int, int], set[str]]]:
-        
+
         def merge_tagTarget_relations(args):
             tagTarget_relations, tree_sitter_analysis_result = args
-            merged_tagTarget_relations = tree_sitter_analysis_result.tagTarget_relations + tagTarget_relations
+            merged_tagTarget_relations = (
+                tree_sitter_analysis_result.tagTarget_relations + tagTarget_relations
+            )
             merged_symbol_relations = tree_sitter_analysis_result.symbol_relations
             return merged_tagTarget_relations, merged_symbol_relations
 
@@ -70,13 +86,19 @@ class CodeAnalyzer:
             ph.de_file_and_merge(file_tagTarget_relations),
         )
 
-        def _make_tagTarget_arch_dict(tagTarget_relation: DepRelation):
-            k = (
-                tagTarget_relation.node.info.start_line,
-                tagTarget_relation.node.info.end_line,
-            )
-            v = reduce(lambda a, b: a.archs | b.archs, tagTarget_relation.dependencies)
-            return {k: v}
+        def _make_tagTarget_arch_dict(args: tuple):
+            (tagTarget_relations,) = args
+            arch_dict = {}
+            for tagTarget_relation in tagTarget_relations:
+                k = (
+                    tagTarget_relation.node.info.start_line,
+                    tagTarget_relation.node.info.end_line,
+                )
+                v = set().union(
+                    *(node.archs for node in tagTarget_relation.dependencies)
+                )
+                arch_dict[k] = v
+            return arch_dict
 
         AnalysisResult = ph.map(
             file_paths,
