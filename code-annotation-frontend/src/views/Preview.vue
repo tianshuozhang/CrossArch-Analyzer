@@ -27,6 +27,13 @@
         <div class="project-controls">
           <button class="btn primary" @click="openProjectManagement">项目管理</button>
           <button class="btn secondary" @click="showStatusInfo">状态</button>
+          <!-- 任务进度指示器 -->
+          <div class="task-progress-indicator" v-if="isAnalyzing || analysisTaskStatus !== 'idle'">
+            <span class="progress-badge" :class="analysisTaskStatus">
+              <span class="progress-spinner" v-if="analysisTaskStatus === 'running' || analysisTaskStatus === 'pending'"></span>
+              {{ analysisProgress }}%
+            </span>
+          </div>
         </div>
       </section>
       <section class="panel" v-if="userId === 'admin'">
@@ -254,8 +261,9 @@
       </div>
       <div style="margin: 15px 0;">
         <h4>分析进度状态</h4>
-        <div v-if="isAnalyzing">
+        <div v-if="isAnalyzing || analysisTaskStatus !== 'idle'">
           <div>分析进度: {{ analysisProgress }}%</div>
+          <div>任务状态: {{ analysisTaskStatus }}</div>
           <div class="progress-bar">
             <div class="progress" :style="{ width: analysisProgress + '%' }"></div>
           </div>
@@ -265,7 +273,8 @@
         </div>
       </div>
       <div style="text-align: right; margin-top: 15px;">
-        <button class="btn secondary" @click="simulateAnalysis" style="margin-right: 10px;" v-if="!isAnalyzing">模拟开始分析</button>
+        <button class="btn secondary" @click="fetchCurrentStatus" style="margin-right: 10px;">刷新状态</button>
+        <button class="btn primary" @click="startAnalysisTask" style="margin-right: 10px;" :disabled="!currentProjectId || isAnalyzing">启动分析</button>
         <button class="btn secondary" @click="closeStatusPanel">关闭</button>
       </div>
     </div>
@@ -508,6 +517,63 @@
 
 .delete-dot {
   background-color: #FF6B6B; /* 红色，用于删除 */
+}
+
+/* 任务进度指示器样式 */
+.task-progress-indicator {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+.progress-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  background-color: #f0f0f0;
+  color: #666;
+}
+
+.progress-badge.running {
+  background-color: #e6f7ff;
+  color: #1890ff;
+  border: 1px solid #91d5ff;
+}
+
+.progress-badge.pending {
+  background-color: #fffbe6;
+  color: #faad14;
+  border: 1px solid #ffe58f;
+}
+
+.progress-badge.completed {
+  background-color: #f6ffed;
+  color: #52c41a;
+  border: 1px solid #b7eb8f;
+}
+
+.progress-badge.failed {
+  background-color: #fff2f0;
+  color: #ff4d4f;
+  border: 1px solid #ffccc7;
+}
+
+.progress-spinner {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 4px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* 修复页面布局，确保HeaderNav组件正确显示 */
@@ -754,6 +820,31 @@ export default {
   components: { HeaderNav },
   data() {
     return {
+      sampleCode: {
+        'arm/driver.c': [
+          { text: '#include <stdio.h>', tags: ['common'], customTag: '', tagColor: '#f3f3f3' },
+          { text: 'int init_driver() {', tags: ['arm'], type: 'function', fn: 'init_driver', customTag: '', tagColor: '#ddf4ff' },
+          { text: '    int ok = 1;', tags: ['arm'], customTag: '', tagColor: '#ddf4ff' },
+          { text: '    return ok;', tags: ['arm'], customTag: '', tagColor: '#ddf4ff' },
+          { text: '}', tags: ['arm'], customTag: '', tagColor: '#ddf4ff' },
+          { text: '', tags: [], customTag: '', tagColor: '' },
+          { text: 'int calc_riscv(int x) {', tags: ['riscv'], type: 'function', fn: 'calc_riscv', customTag: '', tagColor: '#dafbe1' },
+          { text: '    int res = x;', tags: ['riscv'], customTag: '', tagColor: '#dafbe1' },
+          { text: '    if (RISCV_VECTOR) {', tags: ['riscv'], type: 'block', customTag: '', tagColor: '#dafbe1' },
+          { text: '        res += 8;', tags: ['riscv'], customTag: '', tagColor: '#dafbe1' },
+          { text: '    }', tags: ['riscv'], customTag: '', tagColor: '#dafbe1' },
+          { text: '    return res;', tags: ['riscv'], type: 'stmt', customTag: '', tagColor: '#dafbe1' },
+          { text: '}', tags: ['riscv'], customTag: '', tagColor: '#dafbe1' },
+          { text: '', tags: [], customTag: '', tagColor: '' },
+          { text: 'void print_info() {', tags: ['common'], type: 'function', fn: 'print_info', customTag: '', tagColor: '#f3f3f3' },
+          { text: '    printf("info\n");', tags: ['common'], customTag: '', tagColor: '#f3f3f3' },
+          { text: '}', tags: ['common'], customTag: '', tagColor: '#f3f3f3' },
+        ],
+        'arm/global.h': [
+          { text: '#pragma once', tags: ['common'], customTag: '', tagColor: '#f3f3f3' },
+          { text: '#define RISCV_VECTOR 1', tags: ['common'], customTag: '', tagColor: '#f3f3f3' },
+        ]
+      },
       fileTree: [
         { id: 'root-arm', name: 'arm', type: 'dir', path: 'arm', expanded: true, editing: false, tempName: 'arm', children: [
           { id: 'arm-driver', name: 'driver.c', type: 'file', path: 'arm/driver.c', editing: false, tempName: 'driver.c' },
@@ -790,6 +881,7 @@ export default {
       contextMenuPosition: { x: 0, y: 0 }, // 右键菜单位置
       contextMenuNode: null,   // 右键点击的节点
       userId: window.localStorage.getItem('userId') || 'demo', // 当前用户ID，用于判断是否为管理员
+      currentProjectId: null, // 当前打开的项目ID
       showAdminPanel: false, // 是否显示管理员面板
       adminUsers: [ // 管理员用户数据
         { 
@@ -830,6 +922,9 @@ export default {
       analysisProgress: 0,
       isUploading: false,
       isAnalyzing: false,
+      // 任务进度相关状态
+      analysisTaskId: null,  // 当前分析任务ID
+      analysisTaskStatus: 'idle', // 任务状态: idle, pending, running, completed, failed
       projects: [],
       selectedProject: null,
       statusInterval: null,
@@ -845,7 +940,7 @@ export default {
     }
   },
   computed: {
-    currentCode() { return sampleCode[this.selectedFilePath] || [] },
+    currentCode() { return this.sampleCode[this.selectedFilePath] || [] },
     filteredCode() {
       const text = this.searchText.trim().toLowerCase()
       if (!text) return this.currentCode
@@ -939,7 +1034,146 @@ export default {
     chatHeight() { if (this.codeCollapsed) return 100; if (this.leftCollapsed) return 60; return 30 }
   },
   methods: {
-    selectFile(node) { if (node.type === 'file') { this.selectedFilePath = node.path } },
+    async selectFile(node) { 
+      console.log('DEBUG: selectFile 被调用:', node);
+      if (node.type === 'file') { 
+        // 动态构建完整路径
+        const fullPath = this.buildFullPath(node);
+        console.log('DEBUG: 选中文件节点:', { 
+          originalPath: node.path, 
+          name: node.name, 
+          fullPath: fullPath 
+        });
+        
+        // 立即更新选中的文件路径
+        this.selectedFilePath = fullPath;
+        
+        // 等待DOM更新后再加载文件内容
+        await this.$nextTick();
+        
+        // 加载文件内容
+        await this.loadFileContent(fullPath);
+        
+        // 确保代码高亮
+        Prism.highlightAll();
+      }
+    },
+      
+    // 构建文件的完整路径
+    buildFullPath(node) {
+      if (node.path) {
+        // 如果节点已有路径，直接使用
+        return node.path;
+      }
+        
+      // 根据项目结构，文件可能在不同的目录层级
+      // 尝试多种路径格式
+      if (node.name) {
+        // 检查是否已经是完整路径格式（包含目录）
+        if (node.name.includes('/')) {
+          return node.name;
+        }
+        // 尝试常见的路径格式
+        const possiblePaths = [
+          'content/' + node.name,
+          node.name
+        ];
+        
+        // 简单检查是否存在已知的目录结构
+        for (const path of possiblePaths) {
+          if (path.startsWith('content/') || path.startsWith('src/') || path.startsWith('include/') || path.startsWith('test/')) {
+            return path;
+          }
+        }
+        
+        // 默认使用 content/ 前缀
+        return 'content/' + node.name;
+      }
+        
+      // 如果无法构建完整路径，使用节点名称作为后备
+      return node.name || '';
+    },
+    
+    async loadFileContent(filePath) {
+      try {
+        const original = String(filePath || '');
+        const sendPath = original;
+        console.log('DEBUG: 准备打开文件:', { filePath: sendPath });
+        const res = await projectApi.openFile(sendPath);
+        console.log('DEBUG: openFile 响应:', res);
+        if (res && res.state === 'success' && res.rst) {
+          console.log('DEBUG: 响应状态成功，rst:', res.rst);
+          
+          // 从响应中提取文件数据
+          let fileData = res.rst.file_data;
+          
+          // 如果没有file_data，尝试直接从rst中获取
+          if (!fileData) {
+            fileData = {};
+            if (res.rst.file_content !== undefined) {
+              fileData.file_content = res.rst.file_content;
+            }
+            if (res.rst.tag_data !== undefined) {
+              fileData.tag_data = res.rst.tag_data;
+            }
+          }
+          
+          console.log('DEBUG: fileData:', fileData);
+          
+          // 提取文件内容
+          const txt = fileData.file_content || res.rst.file_content || '';
+          console.log('DEBUG: 提取的文本长度:', txt.length);
+          // 直接处理文件内容和标签数据
+          const lines = String(txt || '').split(/\r?\n/);
+          console.log('DEBUG: 文本行数:', lines.length);
+          let parsed = lines.map((s) => ({ text: s || '', tags: [], tagColor: '', customTag: '' }));
+          console.log('DEBUG: 解析后的行数:', parsed.length);
+          
+          // 如果有标签数据，则应用标签
+          if (fileData.tag_data && Array.isArray(fileData.tag_data) && fileData.tag_data.length > 0) {
+            console.log('DEBUG: 应用标签数据，标签数量:', fileData.tag_data.length);
+            parsed = this.applyTagsToLines(parsed, fileData.tag_data);
+          }
+          
+          // 更新响应式的 sampleCode 对象
+          console.log('DEBUG: 更新 sampleCode，文件路径:', filePath);
+          this.sampleCode[filePath] = parsed;
+          // 使用 nextTick 确保DOM更新后再高亮代码
+          await this.$nextTick();
+          
+          // 强制更新当前代码显示
+          this.$forceUpdate();
+          
+          // 确保代码高亮
+          Prism.highlightAll();
+          console.log('DEBUG: 文件内容显示完成');
+        } else {
+          console.log('DEBUG: 响应状态失败:', res);
+          // 显示错误信息
+          const errorMsg = res?.description || '读取文件内容失败';
+          this.toast(errorMsg);
+          
+          // 如果失败，仍然设置一个空的文件内容，避免界面卡住
+          this.$set(this.sampleCode, filePath, [{ text: '文件加载失败', tags: [], tagColor: '#ffcccc', customTag: '' }]);
+          
+          // 确保界面更新
+          await this.$nextTick();
+          this.$forceUpdate();
+          Prism.highlightAll();
+        }
+      } catch (e) {
+        console.error('loadFileContent error', e);
+        this.toast('读取文件内容失败: ' + e.message);
+        
+        // 发生异常时，仍然设置一个空的文件内容，避免界面卡住
+        this.$set(this.sampleCode, filePath, [{ text: '文件加载失败: ' + e.message, tags: [], tagColor: '#ffcccc', customTag: '' }]);
+        
+        // 确保界面更新
+        await this.$nextTick();
+        this.$forceUpdate();
+        Prism.highlightAll();
+      }
+    },
     toggleDir(node) { node.expanded = !node.expanded },
     toggleCode() { this.codeCollapsed = !this.codeCollapsed },
     toggleLeft() { this.leftCollapsed = !this.leftCollapsed },
@@ -965,37 +1199,37 @@ export default {
       
       const reader = new FileReader()
       reader.onload = async () => {
-        const text = String(reader.result || '')
-        const lines = text.split(/\r?\n/)
-        const parsed = lines.map((s) => ({ text: s || '', tags: [], tagColor: '', customTag: '' }))
-        const path = 'uploaded/' + f.name
-        this.codeTextMap[path] = text
-        sampleCode[path] = parsed
-        let uploadedRoot = this.fileTree.find(n => n.path === 'uploaded')
-        if (!uploadedRoot) { 
-          uploadedRoot = { 
-            id: 'root-uploaded', 
-            name: 'uploaded', 
-            type: 'dir', 
-            path: 'uploaded', 
-            expanded: true, 
+          const text = String(reader.result || '')
+          const lines = text.split(/\r?\n/)
+          const parsed = lines.map((s) => ({ text: s || '', tags: [], tagColor: '', customTag: '' }))
+          const path = 'uploaded/' + f.name
+          this.codeTextMap[path] = text
+          this.$set(this.sampleCode, path, parsed)
+          let uploadedRoot = this.fileTree.find(n => n.path === 'uploaded')
+          if (!uploadedRoot) { 
+            uploadedRoot = { 
+              id: 'root-uploaded', 
+              name: 'uploaded', 
+              type: 'dir', 
+              path: 'uploaded', 
+              expanded: true, 
+              editing: false, 
+              tempName: 'uploaded',
+              children: [] 
+            }; 
+            this.fileTree.push(uploadedRoot) 
+          }
+          uploadedRoot.children.push({ 
+            id: 'uploaded-' + Date.now(), 
+            name: f.name, 
+            type: 'file', 
+            path, 
             editing: false, 
-            tempName: 'uploaded',
-            children: [] 
-          }; 
-          this.fileTree.push(uploadedRoot) 
-        }
-        uploadedRoot.children.push({ 
-          id: 'uploaded-' + Date.now(), 
-          name: f.name, 
-          type: 'file', 
-          path, 
-          editing: false, 
-          tempName: f.name 
-        })
-        this.selectedFilePath = path
-        this.codeCollapsed = false
-        this.$nextTick(() => Prism.highlightAll())
+            tempName: f.name 
+          })
+          this.selectedFilePath = path
+          this.codeCollapsed = false
+          this.$nextTick(() => Prism.highlightAll())
         
         // 更新上传进度
         this.uploadProgress = 100;
@@ -1045,11 +1279,19 @@ export default {
         return
       }
       try {
+        if (!this.currentProjectId) {
+          this.toast('请先打开一个项目再下载报告')
+          return
+        }
+        const token = localStorage.getItem('token') || ''
         const base = (this.apiBase || '').replace(/\+$/, '')
         const fd = new FormData()
-        fd.append('userId', this.userId || 'demo')
-        fd.append('codeId', codeId)
-        const r = await fetch(base + '/Code/report', { method: 'POST', body: fd })
+        fd.append('project_id', String(this.currentProjectId))
+        const r = await fetch(base + '/Analysis/report', { 
+          method: 'POST', 
+          body: fd,
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
         if (r && r.ok) {
           const blob = await r.blob()
           const url = URL.createObjectURL(blob)
@@ -1121,7 +1363,8 @@ export default {
       this.messages.push({ id: loadingId, role: 'system', text: '分析中…' })
       const codeId = (this.selectedFilePath || '').split('/').pop() || 'code.c'
       const text = this.codeTextMap[this.selectedFilePath] || this.currentCode.map(l => l.text).join('\n')
-      const ok = await this.analyze(codeId, text)
+      const currentInputText = this.inputText; // 保存当前的 inputText
+      const ok = await this.analyze(codeId, text, currentInputText); // 传递给 analyze 方法
       const idx = this.messages.findIndex(m => m.id === loadingId)
       if (idx >= 0) {
         const reply = (ok && this.lastReply) ? this.lastReply : `已接收需求，正在分析 ${this.selectedFilePath}`
@@ -1130,7 +1373,7 @@ export default {
       this.inputText = ''
       this.$nextTick(() => { const box = document.querySelector('.chat-history'); if (box) box.scrollTop = box.scrollHeight })
     },
-    async analyze(codeId, codeText) {
+    async analyze(codeId, codeText, inputText) {
       try {
         // 设置分析状态
         this.isAnalyzing = true;
@@ -1143,30 +1386,46 @@ export default {
           }
         }, 100);
         
-        const base = (this.apiBase || '').replace(/\+$/, '')
-        const fd = new FormData()
-        const ext = (codeId.split('.').pop() || 'c').toLowerCase()
-        fd.append('userId', this.userId || 'demo')
-        fd.append('codeId', codeId)
-        fd.append('code', codeText || '')
-        fd.append('language', ['c','h','cpp','cc','cxx','py','js','ts','java','go','rs'].includes(ext) ? ext : 'c')
-        fd.append('prompt', this.inputText || '')
-        if (!this.inputText){
-          const r = await fetch(base + '/Analysis/analyze', { method: 'POST', body: fd })
+        if (!inputText){
+          // 开始分析
+          const res = await projectApi.startAnalysis(this.currentProjectId);
           clearInterval(analysisInterval);
           this.analysisProgress = 100;
-          if (!r || !r.ok) { 
+          if (!res || res.state !== 'success' || !res.rst) { 
             this.toast('后端分析失败，保留未标注预览'); 
             this.isAnalyzing = false;
             return false 
           }
-          const data = await r.json().catch(() => null)
-          if (!data || data.state !== 'success' || !data.rst) { 
+          
+          const task_id = res.rst.task_id;
+          if (!task_id) {
             this.toast('后端分析失败，保留未标注预览'); 
             this.isAnalyzing = false;
             return false 
           }
-          const { reply, annotations, report, stats, codeContent } = data.rst
+          
+          // 轮询分析进度
+          let progressRes;
+          do {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            progressRes = await projectApi.getAnalysisProgress(task_id);
+            
+            // 更新进度信息
+            if (progressRes && progressRes.state === 'success' && progressRes.rst) {
+              this.analysisProgress = progressRes.rst.progress || 0;
+              this.analysisTaskStatus = progressRes.rst.status || 'running';
+            }
+          } while (progressRes && progressRes.state === 'success' && progressRes.rst && progressRes.rst.progress < 100);
+          
+          // 获取分析结果
+          const fetchRes = await projectApi.fetchAnalysis(this.selectedFilePath, this.currentProjectId, task_id);
+          if (!fetchRes || fetchRes.state !== 'success' || !fetchRes.rst) { 
+            this.toast('后端分析失败，保留未标注预览'); 
+            this.isAnalyzing = false;
+            return false 
+          }
+          
+          const { reply, annotations, report, stats, codeContent } = fetchRes.rst || {}
           this.lastReply = reply || ''
           this.applyAnnotations(this.selectedFilePath, annotations || [])
           this.reportData = report || null
@@ -1178,21 +1437,35 @@ export default {
           }
         }
         else{
-          const r = await fetch(base + '/Analysis/chat', { method: 'POST', body: fd })
-          clearInterval(analysisInterval);
-          this.analysisProgress = 100;
-          if (!r || !r.ok) { 
-            this.toast('后端分析失败，保留未标注预览'); 
+          // 智能问答
+          try {
+            console.log('DEBUG: 发送智能问答请求，问题:', inputText);
+            const res = await projectApi.askAnalysis(inputText);
+            console.log('DEBUG: 智能问答接口返回:', res);
+            clearInterval(analysisInterval);
+            this.analysisProgress = 100;
+            if (!res || res.state !== 'success' || !res.rst) { 
+              console.log('DEBUG: 智能问答接口返回失败:', res);
+              this.toast('后端分析失败，保留未标注预览'); 
+              this.isAnalyzing = false;
+              return false 
+            }
+            this.lastReply = res.rst.answer || ''
+            
+            // 如果后端返回了图表数据，可以在这里处理（暂时只做日志记录，后续可扩展功能）
+            if (res.rst.graph && Object.keys(res.rst.graph).length > 0) {
+              console.log('Received graph data:', res.rst.graph);
+              // TODO: 可以在这里添加可视化图表的展示逻辑
+            }
+          } catch (error) {
+            console.error('DEBUG: 智能问答接口调用失败:', error);
+            clearInterval(analysisInterval);
+            this.analysisProgress = 0;
             this.isAnalyzing = false;
-            return false 
+            this.toast('后端分析失败，保留未标注预览');
+            return false;
           }
-          const data = await r.json().catch(() => null)
-          if (!data || data.state !== 'success' || !data.rst) { 
-            this.toast('后端分析失败，保留未标注预览'); 
-            this.isAnalyzing = false;
-            return false 
-          }
-          this.lastReply = data.rst
+          
           this.isAnalyzing = false;
           return true
         }
@@ -1212,7 +1485,7 @@ export default {
       }
     },
     applyAnnotations(path, annotations) {
-      const lines = sampleCode[path] || []
+      const lines = this.sampleCode[path] || []
       annotations.forEach(a => {
         const i = typeof a.line === 'number' ? a.line - 1: (typeof a.index === 'number' ? a.index : -1)
         if (i >= 0 && i < lines.length) {
@@ -1246,9 +1519,36 @@ export default {
       return colorMap[tag] || colorMap['default'];
     },
     
+    // 应用标签数据到代码行
+    applyTagsToLines(lines, tagData) {
+      // 根据标签数据更新每行的标签信息
+      const updatedLines = [...lines];
+      
+      tagData.forEach(tag => {
+        const start = tag.start;
+        const end = tag.end;
+        const archNames = tag.arch_names || [];
+        
+        // 确保索引在范围内
+        for (let i = start; i <= end && i < updatedLines.length; i++) {
+          if (updatedLines[i]) {
+            // 合并标签，避免重复
+            const newTags = [...new Set([...updatedLines[i].tags, ...archNames])];
+            updatedLines[i] = {
+              ...updatedLines[i],
+              tags: newTags,
+              tagColor: this.getTagColor(newTags),
+            };
+          }
+        }
+      });
+      
+      return updatedLines;
+    },
+    
     // 根据后端返回的完整代码内容更新前端显示
     updateCodeFromBackend(path, codeContent) {
-      if (!sampleCode[path]) return;
+      if (!this.sampleCode[path]) return;
       
       // 如果codeContent是字符串，将其分割为行
       let lines = [];
@@ -1259,14 +1559,14 @@ export default {
         lines = codeContent;
       } else {
         // 如果codeContent是对象数组（包含text、tags等），直接赋值
-        sampleCode[path] = codeContent;
+        this.$set(this.sampleCode, path, codeContent);
         this.updateCodeDisplay(path);
         return;
       }
       
       // 更新代码内容，保留原有的标签信息
       const updatedLines = lines.map((lineText, index) => {
-        const existingLine = sampleCode[path][index] || {};
+        const existingLine = this.sampleCode[path][index] || {};
         return {
           text: lineText,
           tags: existingLine.tags || [],
@@ -1277,7 +1577,7 @@ export default {
         };
       });
       
-      sampleCode[path] = updatedLines;
+      this.$set(this.sampleCode, path, updatedLines);
       this.updateCodeDisplay(path);
     },
     fontUp() { this.fontSize = Math.min(22, this.fontSize + 1) },
@@ -1370,19 +1670,25 @@ export default {
     toggleTheme() { this.theme = this.theme === 'light' ? 'dark' : 'light'; document.documentElement.setAttribute('data-theme', this.theme); localStorage.setItem('theme', this.theme) },
     async openProjectManagement() {
       try {
+        console.log('DEBUG: openProjectManagement called');
         // 获取项目列表
-        const response = await projectApi.getProjectList({ userId: this.userId || 'demo' });
-        if (response.state === 'success') {
-          this.projects = response.rst || [];
+        const response = await projectApi.getProjectList();
+        console.log('DEBUG: getProjectList response:', response);
+        if (response.state === 'success' && response.rst && response.rst.list) {
+          this.projects = response.rst.list;
+          console.log('DEBUG: projects set to:', this.projects);
         } else {
           this.projects = [];
+          console.log('DEBUG: projects set to empty array');
         }
         this.showProjectModal = true;
+        console.log('DEBUG: showProjectModal set to:', this.showProjectModal);
       } catch (error) {
         console.error('Failed to load projects:', error);
         // 如果API失败，使用空数组
         this.projects = [];
         this.showProjectModal = true;
+        console.log('DEBUG: showProjectModal set to true in catch block');
         this.toast('获取项目列表失败');
       }
     },
@@ -1419,15 +1725,25 @@ export default {
       }
       
       try {
-        const response = await projectApi.openProject({ 
-          userId: this.userId || 'demo', 
-          projectId: this.selectedProject.id 
-        });
+        const response = await projectApi.openProject(this.selectedProject.id);
         
         if (response.state === 'success') {
           this.toast(`项目 ${this.selectedProject.name} 已打开`);
           this.showProjectModal = false;
-          // 这里可能需要更新文件树等界面内容
+          
+          // 设置当前项目ID
+          this.currentProjectId = this.selectedProject.id;
+          
+          // 更新文件树
+          if (response.rst && response.rst.file_tree) {
+            this.fileTree = response.rst.file_tree;
+            // 清空当前选中的文件路径
+            this.selectedFilePath = '';
+            // 清空代码显示区域
+            Object.keys(this.sampleCode).forEach(key => {
+              delete this.sampleCode[key];
+            });
+          }
         } else {
           this.toast(response.description || '打开项目失败');
         }
@@ -1447,10 +1763,7 @@ export default {
       }
       
       try {
-        const response = await projectApi.deleteProject({ 
-          userId: this.userId || 'demo', 
-          projectId: this.selectedProject.id 
-        });
+        const response = await projectApi.deleteProject(this.selectedProject.id);
         
         if (response.state === 'success') {
           this.toast(`项目 ${this.selectedProject.name} 已删除`);
@@ -1492,9 +1805,9 @@ export default {
     },
     async loadProjects() {
       try {
-        const response = await projectApi.getProjectList({ userId: this.userId || 'demo' });
-        if (response.state === 'success') {
-          this.projects = response.rst || [];
+        const response = await projectApi.getProjectList();
+        if (response.state === 'success' && response.rst && response.rst.list) {
+          this.projects = response.rst.list;
         } else {
           this.projects = [];
         }
@@ -1522,8 +1835,7 @@ export default {
             
             // 创建FormData对象
             const formData = new FormData();
-            formData.append('userId', this.userId || 'demo');
-            formData.append('projectFile', file);
+            formData.append('file', file);
             
             // 模拟上传进度
             const interval = setInterval(() => {
@@ -1569,24 +1881,132 @@ export default {
     },
     async fetchCurrentStatus() {
       try {
-        // 获取上传进度
-        const uploadResponse = await projectApi.getUploadProgress({ userId: this.userId || 'demo' });
-        if (uploadResponse.state === 'success' && uploadResponse.rst) {
-          this.uploadProgress = uploadResponse.rst.progress || 0;
-          this.isUploading = uploadResponse.rst.isUploading || false;
-        }
-        
-        // 获取分析进度
-        const analysisResponse = await projectApi.getAnalysisProgress({ userId: this.userId || 'demo' });
-        if (analysisResponse.state === 'success' && analysisResponse.rst) {
-          this.analysisProgress = analysisResponse.rst.progress || 0;
-          this.isAnalyzing = analysisResponse.rst.isAnalyzing || false;
+        // 如果当前有项目打开，尝试获取分析任务进度
+        if (this.currentProjectId) {
+          // 从后端获取真实分析任务进度
+          const response = await projectApi.getAnalysisProgress(this.currentProjectId);
+          
+          if (response && response.state === 'success' && response.rst) {
+            const progressData = response.rst;
+            
+            // 更新分析进度状态
+            if (progressData.hasOwnProperty('progress')) {
+              this.analysisProgress = parseInt(progressData.progress) || 0;
+            }
+            
+            // 更新任务状态
+            if (progressData.hasOwnProperty('status')) {
+              this.analysisTaskStatus = progressData.status;
+            }
+            
+            // 根据任务状态更新UI
+            if (progressData.status === 'completed' || progressData.progress === 100) {
+              this.isAnalyzing = false;
+              this.analysisTaskStatus = 'completed';
+              this.toast('分析任务已完成');
+            } else if (progressData.status === 'running' || progressData.progress > 0) {
+              this.isAnalyzing = true;
+              this.analysisTaskStatus = 'running';
+            } else if (progressData.status === 'pending') {
+              this.isAnalyzing = true; // 任务排队中，仍视为分析中
+              this.analysisTaskStatus = 'pending';
+            } else if (progressData.status === 'failed') {
+              this.isAnalyzing = false;
+              this.analysisTaskStatus = 'failed';
+              this.toast('分析任务失败，请重试');
+            } else if (progressData.status === 'idle') {
+              this.isAnalyzing = false;
+              this.analysisTaskStatus = 'idle';
+            }
+            
+            console.log('DEBUG: 更新分析进度:', progressData);
+          }
         }
       } catch (error) {
         console.error('Failed to fetch status:', error);
         // 即使API失败也不显示错误，因为这只是一个状态查询
+        // 重置状态以避免UI显示错误状态
+        this.analysisTaskStatus = 'failed';
+        this.isAnalyzing = false;
       }
     },
+    
+    // 启动分析任务
+    async startAnalysisTask() {
+      if (!this.currentProjectId) {
+        this.toast('请先打开一个项目');
+        return;
+      }
+      
+      try {
+        // 设置初始状态
+        this.isAnalyzing = true;
+        this.analysisProgress = 0;
+        this.analysisTaskStatus = 'pending';
+        
+        // 启动分析任务
+        const response = await projectApi.startAnalysis(this.currentProjectId);
+        
+        if (response && response.state === 'success' && response.rst) {
+          this.analysisTaskId = response.rst.task_id;
+          this.toast('分析任务已启动');
+          
+          // 开始轮询任务进度
+          this.pollTaskProgress();
+        } else {
+          this.isAnalyzing = false;
+          this.analysisTaskStatus = 'failed';
+          this.toast(response?.description || '启动分析任务失败');
+        }
+      } catch (error) {
+        console.error('启动分析任务失败:', error);
+        this.isAnalyzing = false;
+        this.analysisTaskStatus = 'failed';
+        this.toast('启动分析任务失败: ' + error.message);
+      }
+    },
+    
+    // 轮询任务进度
+    async pollTaskProgress() {
+      if (!this.analysisTaskId) return;
+      
+      try {
+        let progressRes;
+        do {
+          // 等待一段时间再查询
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          progressRes = await projectApi.getAnalysisProgress(this.analysisTaskId);
+          
+          if (progressRes && progressRes.state === 'success' && progressRes.rst) {
+            const progressData = progressRes.rst;
+            
+            // 更新进度信息
+            this.analysisProgress = progressData.progress || 0;
+            this.analysisTaskStatus = progressData.status || 'running';
+            
+            // 根据状态更新UI
+            if (progressData.status === 'completed' || progressData.progress === 100) {
+              this.isAnalyzing = false;
+              this.analysisTaskStatus = 'completed';
+              this.toast('分析任务已完成');
+              break;
+            } else if (progressData.status === 'failed') {
+              this.isAnalyzing = false;
+              this.analysisTaskStatus = 'failed';
+              this.toast('分析任务失败，请重试');
+              break;
+            }
+          }
+        } while (progressRes && progressRes.state === 'success' && progressRes.rst && progressRes.rst.progress < 100);
+      } catch (error) {
+        console.error('轮询任务进度失败:', error);
+        this.isAnalyzing = false;
+        this.analysisTaskStatus = 'failed';
+        this.toast('轮询任务进度失败: ' + error.message);
+      }
+    },
+    
     simulateAnalysis() {
       this.isAnalyzing = true;
       this.analysisProgress = 0;
@@ -1646,10 +2066,10 @@ export default {
             const newPath = pathParts.join('/');
             
             // 更新sampleCode中的键（如果有）
-            if (sampleCode[oldPath]) {
-              const codeData = sampleCode[oldPath];
-              delete sampleCode[oldPath];
-              sampleCode[newPath] = codeData;
+            if (this.sampleCode[oldPath]) {
+              const codeData = this.sampleCode[oldPath];
+              delete this.sampleCode[oldPath];
+              this.$set(this.sampleCode, newPath, codeData);
               
               // 如果当前选中的文件路径是旧路径，更新它
               if (this.selectedFilePath === oldPath) {
@@ -1706,7 +2126,7 @@ export default {
           await fetch(base + '/Code/removeCode', { method: 'POST', body: fd }).catch(() => {})
           
           // 从sampleCode中删除
-          delete sampleCode[node.path]
+          delete this.sampleCode[node.path]
           
           // 如果是当前选中的文件，切换到其他文件
           if (this.selectedFilePath === node.path) {
@@ -1860,10 +2280,10 @@ export default {
       node.path = newPath;
       
       // 如果是文件，需要更新sampleCode中的键
-      if (node.type === 'file' && sampleCode[oldPath]) {
-        const codeData = sampleCode[oldPath];
-        delete sampleCode[oldPath];
-        sampleCode[newPath] = codeData;
+      if (node.type === 'file' && this.sampleCode[oldPath]) {
+        const codeData = this.sampleCode[oldPath];
+        delete this.sampleCode[oldPath];
+        this.$set(this.sampleCode, newPath, codeData);
         
         // 如果当前选中的文件是这个文件，也要更新
         if (this.selectedFilePath === oldPath) {
@@ -1909,7 +2329,7 @@ export default {
     },
     updateCodeLine(index, newText) {
       if (this.selectedFilePath) {
-        const lines = sampleCode[this.selectedFilePath];
+        const lines = this.sampleCode[this.selectedFilePath];
         if (lines && index >= 0 && index < lines.length) {
           // 保留标签和颜色信息，只更新文本
           const preservedProperties = {
@@ -2130,17 +2550,52 @@ export default {
     this.$watch('codeCollapsed', (val) => { const c = JSON.parse(localStorage.getItem('collapsed') || '{}'); c.code = !!val; localStorage.setItem('collapsed', JSON.stringify(c)) })
     this.$watch('chatOnly', (val) => { const c = JSON.parse(localStorage.getItem('collapsed') || '{}'); c.chatOnly = !!val; localStorage.setItem('collapsed', JSON.stringify(c)) })
     
+    // 检查用户是否已经登录
+    const userId = localStorage.getItem('userId');
+    if (userId && userId !== 'demo') {
+      // 用户已经登录，清空示例文件，尝试打开第一个项目
+      console.log('DEBUG: 用户已登录，清空示例文件');
+      // 清空 sampleCode 对象
+      for (const key in this.sampleCode) {
+        delete this.sampleCode[key];
+      }
+      // 清空选中的文件路径
+      this.selectedFilePath = '';
+      // 尝试获取用户的项目列表
+      this.loadProjects().then(() => {
+        console.log('DEBUG: 加载项目列表完成，项目数量:', this.projects.length);
+        if (this.projects.length > 0) {
+          // 如果有项目，打开第一个项目
+          console.log('DEBUG: 打开第一个项目:', this.projects[0]);
+          this.selectedProject = this.projects[0];
+          this.openExistingProject();
+        }
+      }).catch((error) => {
+        console.error('DEBUG: 加载项目列表失败:', error);
+      });
+    }
+    
     // 设置定期获取状态信息的定时器
     this.statusInterval = setInterval(async () => {
       if (this.showStatusPanel) {
         await this.fetchCurrentStatus();
       }
     }, 2000); // 每2秒更新一次状态
+    
+    // 设置全局任务进度检查定时器，即使不在状态面板中也能更新进度
+    this.globalProgressInterval = setInterval(async () => {
+      if (this.currentProjectId && (this.isAnalyzing || this.analysisTaskStatus !== 'idle')) {
+        await this.fetchCurrentStatus();
+      }
+    }, 5000); // 每5秒更新一次全局进度
   },
   beforeUnmount() {
     // 清理定时器
     if (this.statusInterval) {
       clearInterval(this.statusInterval);
+    }
+    if (this.globalProgressInterval) {
+      clearInterval(this.globalProgressInterval);
     }
   },
   updated() { Prism.highlightAll() }

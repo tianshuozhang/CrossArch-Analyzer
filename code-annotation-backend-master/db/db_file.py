@@ -55,9 +55,9 @@ class FileDB(DBc):
         return self.cursor.lastrowid
 
     def get_file_id_by_file_path(self, file_path: str, project_id: int) -> int | None:
-        """根据文件路径获取文件ID"""
-        sql = "SELECT id FROM files WHERE path = %s"
-        self.execute(sql, (file_path))
+        """根据文件路径和项目ID获取文件ID"""
+        sql = "SELECT id FROM files WHERE project_id = %s AND path = %s"
+        self.execute(sql, (project_id, file_path))
         result = self.cursor.fetchone()
         return result["id"] if result else None
 

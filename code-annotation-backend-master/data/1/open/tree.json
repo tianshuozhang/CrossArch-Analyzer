@@ -1,0 +1,48 @@
+[
+  {
+    "name": "content",
+    "type": "dir",
+    "children": [
+      {
+        "name": "showme.c",
+        "type": "file",
+        "children": []
+      },
+      {
+        "name": "makefile",
+        "type": "file",
+        "children": []
+      },
+      {
+        "name": "triangle.c",
+        "type": "file",
+        "children": []
+      },
+      {
+        "name": "A.poly",
+        "type": "file",
+        "children": []
+      },
+      {
+        "name": "tricall.c",
+        "type": "file",
+        "children": []
+      },
+      {
+        "name": "README",
+        "type": "file",
+        "children": []
+      },
+      {
+        "name": "triangle.h",
+        "type": "file",
+        "children": []
+      }
+    ]
+  },
+  {
+    "name": "graph",
+    "type": "dir",
+    "children": []
+  }
+]

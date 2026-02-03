@@ -1,46 +1,39 @@
 let Ip = "/api/";
-
 let path = {
   website: {
     register: Ip + "User/register",
     login: Ip + "User/login",
-    exit: Ip + "User/exit",
-    modifyPW: Ip + "User/modifyPassword",
-    removeUser: Ip + "User/removeUser",
-    getUserList: Ip + "Admin/getUsers",
-    admin_removeUser: Ip + "Admin/removeUser",
-    getCodeList: Ip + "Code/getCodes",
-    getCode: Ip + "Code/getCode",
-    addCode: Ip + "Code/addCode",
-    removeCode: Ip + "Code/removeCode",
-    modifyCodeID: Ip + "Code/modifyCodeID",
-    modifyCode: Ip + "Code/modifyCode",
-    getLabelMark: Ip + "Mark/getLabelMark",
-    getUserMark: Ip + "Mark/getUserMark",
-    addMark: Ip + "Mark/addMark",
-    removeMark: Ip + "Mark/removeMark",
-    getCodeMark: Ip + "Mark/getCodeMark",
-    getLabelList: Ip + "UserLabel/getUser",
-    getLabel: Ip + "UserLabel/getLabel",
-    addLabel: Ip + "UserLabel/addLabel",
-    removeLabel: Ip + "UserLabel/removeLabel",
-    modifyLabelID: Ip + "UserLabel/modifyLabelID",
-    modifyLabelIntro: Ip + "UserLabel/modifyLabelintro",
+    modifyPW: Ip + "User/modify_password"
   },
   project: {
-    // 项目管理相关API
-    getProjectList: Ip + "Project/list",
-    createProject: Ip + "Project/create",
+    getProjectList: Ip + "Project/get_project_list",
+    addProject: Ip + "Project/add",
     openProject: Ip + "Project/open",
     deleteProject: Ip + "Project/delete",
-    renameProject: Ip + "Project/rename",
     uploadProject: Ip + "Project/upload",
-    getProjectTree: Ip + "Project/tree",
-    updateProject: Ip + "Project/update",
-    // 状态相关API
-    getStatus: Ip + "Status/get",
-    getUploadProgress: Ip + "Status/upload",
-    getAnalysisProgress: Ip + "Status/analysis",
+    getProjectTree: Ip + "Project/get_tree",
+    closeProject: Ip + "Project/close"
+  },
+  file: {
+    open: Ip + "File/open",
+    save: Ip + "File/save",
+    cancel: Ip + "File/cancel",
+    close: Ip + "File/close"
+  },
+  analysis: {
+    cancel: Ip + "Analysis/cancel",
+    progress: Ip + "Analysis/progress",
+    ask: Ip + "Analysis/ask",
+    fetch: Ip + "Analysis/fetch",
+    start: Ip + "Analysis/analysis",
+    report: Ip + "Analysis/report"
+  },
+  graph: {
+    getList: Ip + "Graph/get_list",
+    getGraph: Ip + "Graph/get_graph"
+  },
+  archTag: {
+    modify: Ip + "ArchTag/modify"
   }
 };
 export default path;

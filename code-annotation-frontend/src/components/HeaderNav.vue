@@ -160,7 +160,10 @@
         postData(url, params).then((res) => {
           if (res.state === "success") {
             message.success(res.description);
-            window.localStorage.setItem("userId", loginForm.username);
+            window.localStorage.setItem("userId", res.rst && res.rst.username ? res.rst.username : loginForm.username);
+            if (res.rst && res.rst.token) {
+              window.localStorage.setItem("token", res.rst.token);
+            }
             isVisitor.value = false;  // 正常登录的用户不是访客
             closeLoginModal();
             
@@ -214,23 +217,10 @@
       }
       
       function handleExit() {
-        const params = new URLSearchParams();
-        const url = path.website.exit;
-        getData(url, params).then((res) => {
-          if (res.state === "success") {
-            message.success(res.description);
-            window.localStorage.removeItem("userId");
-            isVisitor.value = true;
-            router.push({ name: "code" });
-          } else {
-            message.error(res.description);
-          }
-        }).catch(error => {
-          // 如果退出接口调用失败（比如对于游客用户），也要清除本地存储并设置为访客状态
-          window.localStorage.removeItem("userId");
-          isVisitor.value = true;
-          router.push({ name: "code" });
-        });
+        window.localStorage.removeItem("userId");
+        window.localStorage.removeItem("token");
+        isVisitor.value = true;
+        router.push({ name: "code" });
       }
       
       return { 

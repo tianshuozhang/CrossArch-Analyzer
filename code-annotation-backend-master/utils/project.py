@@ -14,14 +14,21 @@ file_db = FileDB()
 
 def execute_close_project(user_id: int, project_id: int):
     # === 1. 把项目保存到指定位置 ===
-    zip_pack_dir_to(
-        src_root_dir_path=path_dir_open(user_id),
-        dst_zip_path=path_file_save_zip(user_id, project_id),
-    )
+    try:
+        zip_pack_dir_to(
+            src_root_dir_path=path_dir_open(user_id),
+            dst_zip_path=path_file_save_zip(user_id, project_id),
+        )
+    except Exception as e:
+        print(f"WARNING: 保存项目时出错: {e}")
     # === 2. 清理open目录，更新用户的open_project_id===
-    path_tool_clean_dir(path_dir_open(user_id))
+    try:
+        path_tool_clean_dir(path_dir_open(user_id))
+    except Exception as e:
+        print(f"WARNING: 清理目录时出错: {e}")
     if not user_db.update_opened_project_id(user_id, 0):
         print("ERROR:更新用户已打开项目失败")
+        # 即使更新失败，也继续执行，避免阻塞
 
 
 def execute_open_project(user_id: int, project_id: int):
@@ -31,7 +38,10 @@ def execute_open_project(user_id: int, project_id: int):
         return True
     # === 2. 检查用户是否有已打开的项目，如果有，那么关闭它 ===
     if opened_project_id is not None and opened_project_id != 0:
-        execute_close_project(user_id, project_id)
+        try:
+            execute_close_project(user_id, opened_project_id)
+        except Exception as e:
+            print(f"WARNING: 关闭旧项目时出错: {e}，继续打开新项目")
 
     # === 3. 打开项目 ===
     zip_extract_file_to(

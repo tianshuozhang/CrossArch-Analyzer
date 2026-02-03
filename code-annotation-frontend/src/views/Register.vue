@@ -86,13 +86,15 @@ export default defineComponent({
       console.log("Success:", values);
     };
     function handleRegister() {
-      let params = new URLSearchParams();
-      params.append("username", formState.user.username);
-      params.append("telphone", formState.user.telphone);
-      params.append("password", formState.user.password);
-      params.append("password_again", formState.user.password_again);
+      if (formState.user.password !== formState.user.password_again) {
+        message.error("两次输入的密码不一致");
+        return;
+      }
+      let formData = new FormData();
+      formData.append("username", formState.user.username);
+      formData.append("password", formState.user.password);
       let url = path.website.register;
-      postData(url, params).then((res) => {
+      postData(url, formData).then((res) => {
         console.log(res);
         if (res.state === "success") {
           message.success(res.description);

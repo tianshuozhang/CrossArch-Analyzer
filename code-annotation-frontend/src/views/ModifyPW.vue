@@ -79,13 +79,15 @@ export default defineComponent({
       console.log("Success:", values);
     };
     function handleModifyPW() {
-      let params = new URLSearchParams();
-      params.append("telphone", formState.user.telphone);
-      params.append("old_password", formState.user.old_password);
-      params.append("new_password", formState.user.new_password);
-      params.append("new_password_again", formState.user.new_password_again);
+      if (formState.user.new_password !== formState.user.new_password_again) {
+        message.error("两次输入的新密码不一致");
+        return;
+      }
+      let formData = new FormData();
+      formData.append("old_password", formState.user.old_password);
+      formData.append("new_password", formState.user.new_password);
       let url = path.website.modifyPW;
-      postData(url, params).then((res) => {
+      postData(url, formData).then((res) => {
         console.log(res);
         if (res.state === "success") {
           message.success(res.description);

@@ -226,6 +226,7 @@ def open_project(user_id: int):
 
     # === 3. 获取项目的目录树 ===
     project_tree = read_file_tree_from_zip(user_id=user_id, project_id=project_id)
+    print(f"DEBUG: 项目 {project_id} 的文件树: {project_tree}")
 
     # === 4. 返回结果 ===
 
@@ -307,7 +308,30 @@ def get_project_tree(user_id: int):
 def delete_project(user_id: int):
     # === 1. 获取项目ID ===
     project_id = request.form.get("project_id")
-    project_id = int(project_id)
+    if not project_id or str(project_id).lower() == "[object object]":
+        return (
+            jsonify(
+                {
+                    "state": "fail",
+                    "description": "无效的项目ID",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
+    try:
+        project_id = int(project_id)
+    except (ValueError, TypeError):
+        return (
+            jsonify(
+                {
+                    "state": "fail",
+                    "description": "项目ID必须是一个数字",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
 
     # === 2. 如果该项目是当前打开的项目，那么先关闭项目 ===
     opened_project_id = user_db.get_opened_project_id(user_id)

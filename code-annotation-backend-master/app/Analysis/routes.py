@@ -1,5 +1,6 @@
 from app.Analysis import Analysis
 from flask import jsonify, request, send_file
+from io import BytesIO
 import shutil, json, time
 
 
@@ -362,5 +363,12 @@ def report(user_id: int):
     # === 4. 拼接报告 ===
     report_content = f"文字分析报告如下：\n{text_report_content}\n架构标注结构化报告如下：\n{arch_report_content}"
 
-    # === 5. 返回项目报告 ===
-    return send_file(report_content, download_name="report.txt", as_attachment=True)
+    # === 5. 返回项目报告（以文件流返回） ===
+    bio = BytesIO(report_content.encode("utf-8"))
+    bio.seek(0)
+    return send_file(
+        bio,
+        download_name="report.txt",
+        as_attachment=True,
+        mimetype="text/plain; charset=utf-8",
+    )

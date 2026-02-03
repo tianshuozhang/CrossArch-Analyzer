@@ -19,6 +19,9 @@ relation_db = RelationDB()
 def open_file(user_id: int):
     # === 1. 获取要打开的文件路径 ===
     rela_file_path = request.form.get("file_path")
+    print(f"DEBUG: 接收到的文件路径: '{rela_file_path}'")
+    print(f"DEBUG: 用户ID: {user_id}")
+    
     if not rela_file_path:
         return (
             jsonify({"state": "fail", "description": "没有提供文件路径", "rst": {}}),
@@ -52,14 +55,20 @@ def save_file(user_id: int):
             jsonify({"state": "fail", "description": "没有提供文件路径", "rst": {}}),
             404,
         )
-    file_data = request.form.get("file_data")
-    if not file_data:
+    file_data_str = request.form.get("file_data")
+    if not file_data_str:
         return (
             jsonify(
                 {"state": "fail", "description": "没有提供要保存文件内容", "rst": {}}
             ),
             404,
         )
+    try:
+        file_data = json.loads(file_data_str)
+    except json.JSONDecodeError:
+        return jsonify(
+            {"state": "fail", "description": "文件数据格式错误", "rst": {}}
+        ), 400
     # === 2. 执行保存文件 ===
     if not execute_save_file_data(user_id, rela_file_path, file_data):
         return jsonify({"state": "fail", "description": "保存文件内容失败", "rst": {}})
@@ -142,14 +151,20 @@ def close_file(user_id: int):
             jsonify({"state": "fail", "description": "没有提供文件路径", "rst": {}}),
             404,
         )
-    file_data = request.form.get("file_data")
-    if not file_data:
+    file_data_str = request.form.get("file_data")
+    if not file_data_str:
         return (
             jsonify(
                 {"state": "fail", "description": "没有提供要保存文件内容", "rst": {}}
             ),
             404,
         )
+    try:
+        file_data = json.loads(file_data_str)
+    except json.JSONDecodeError:
+        return jsonify(
+            {"state": "fail", "description": "文件数据格式错误", "rst": {}}
+        ), 400
     # === 2. 执行保存文件 ===
     if not execute_save_file_data(user_id, rela_file_path, file_data):
         return jsonify({"state": "fail", "description": "保存文件内容失败", "rst": {}})

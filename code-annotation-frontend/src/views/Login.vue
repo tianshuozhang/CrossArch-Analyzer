@@ -54,15 +54,14 @@
       const onFinish = (values) => { };
       const onFinishFailed = (errorInfo) => { };
       function handleLogin() {
-        let params = new URLSearchParams();
-        params.append("username", formState.username);
-        params.append("password", formState.password);
         let url = path.website.login;
-        postData(url, params).then((res) => {
+        postData(url, { username: formState.username, password: formState.password }).then((res) => {
           if (res.state === "success") {
             message.success(res.description);
-            // 存储用户名而不是硬编码'demo'
-            window.localStorage.setItem("userId", formState.username);
+            window.localStorage.setItem("userId", res.rst.username || formState.username);
+            if (res.rst && res.rst.token) {
+              window.localStorage.setItem("token", res.rst.token);
+            }
             if (formState.username === "admin") {
               router.push({ name: "admin-projects" });
             } else {
@@ -82,45 +81,22 @@
   });
 </script>
 <style scoped>
-  .container { 
-    display: flex; 
-    justify-content: center; 
-    align-items: center; 
-    min-height: 80vh; 
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    padding: 20px;
-  }
-  .login-form { 
-    border-radius: 12px; 
-    background: #ffffff; 
-    width: 400px; 
-    padding: 30px 30px 20px 30px; 
-    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-  }
-  .login-form h1 {
-    color: #2c3e50;
-    margin-bottom: 25px;
-    text-align: center;
-    font-weight: 600;
-  }
-  .login-form-button {
-    width: 100%;
-    margin-bottom: 10px;
-  }
-  .ant-form-item {
-    margin-bottom: 16px;
-  }
-  .login-links {
-    text-align: center;
-    margin-top: 15px;
-  }
-  .login-links a {
-    color: #3498db;
-    margin: 0 8px;
-  }
-  .login-links a:hover {
-    color: #2980b9;
-  }
+.container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 650px;
+  background-size: cover;
+  background: #eeeded;
+}
+.login-form {
+  border-radius: 6px;
+  background: #ffffff;
+  width: 450px;
+  padding: 25px 25px 5px 25px;
+}
+.login-links {
+  text-align: center;
+  margin-top: 12px;
+}
 </style>

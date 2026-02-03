@@ -1,6 +1,7 @@
 # coding=UTF-8
 from flask import Flask
 from app import app
+import os
 
 
 @app.route("/")  # 装饰器，url，路由

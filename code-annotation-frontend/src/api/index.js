@@ -21,17 +21,22 @@ function filterNull(o) {
   return o;
 }
 
-function setHeaders(headers) {
-  axios.defaults.headers.token = headers.token;
+function applyToken() {
+  const t = typeof window !== "undefined" ? window.localStorage.getItem("token") : null;
+  if (t) {
+    axios.defaults.headers.common["Authorization"] = "Bearer " + t;
+  }
 }
 
 function apiAxios(method, url, headers, params, success, failure) {
-  if (headers) {
-    headers = filterNull(headers);
-    setHeaders(headers);
-  }
+  applyToken();
   if (params) {
-    params = filterNull(params);
+    // 检查 params 是否是 FormData 或 URLSearchParams 对象，如果是，就不处理
+    const isFormData = typeof FormData !== 'undefined' && params instanceof FormData;
+    const isUrlParams = typeof URLSearchParams !== 'undefined' && params instanceof URLSearchParams;
+    if (!isFormData && !isUrlParams) {
+      params = filterNull(params);
+    }
   }
   axios({
     method: method,
