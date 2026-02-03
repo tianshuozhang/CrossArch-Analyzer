@@ -200,10 +200,20 @@ def _tag_attribute(symbolName: str, attribute_data: Dict):
 
 
 def tag_symbol(codeNode: CodeNode):
-    with open("algo_framework/data/predef_macro.json", "r") as f:
-        macro_data = json.load(f)
-    with open("algo_framework/data/attributes.json", "r") as f:
-        attribute_data = json.load(f)
+    
+    import os 
+    if os.path.exists("algo_framework/data/predef_macro.json"):
+        with open("algo_framework/data/predef_macro.json", "r") as f:
+            macro_data = json.load(f)
+    else:
+        with open("LLM/algo_framework/data/predef_macro.json", "r") as f:
+            macro_data = json.load(f)
+    if os.path.exists("algo_framework/data/attributes.json"):
+        with open("algo_framework/data/attributes.json", "r") as f:
+            attribute_data = json.load(f)
+    else:
+        with open("LLM/algo_framework/data/attributes.json", "r") as f:
+            attribute_data = json.load(f)
     symbol_name, syntax = codeNode.name, codeNode.syntax
     if syntax in ["function", "type"]:
         arch = _tag_intrinsics(symbol_name)

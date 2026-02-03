@@ -1,6 +1,7 @@
 from utils.data_structures import *
 import sys
 sys.path.append('LLM/')
+sys.path.append("")
 from agents.file_utils import FileScanner, ArchitectureHeuristics
 
 class PreScreener:

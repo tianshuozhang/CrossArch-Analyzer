@@ -89,14 +89,25 @@ class CodeRewriter:
         def _checkLLMadvice(response_content: str):
             # TODO：检查大模型有没有出现幻觉
             return True or False
-        user_prompt = "请根据以下代码片段，生成修改建议：\\n\\n"
-        for error in errors:
-            user_prompt += f"代码片段：\n{error.code_content}\\n\\n"
-        response = self.agent.get_response(user_prompt)
+        code_snippets = "\n".join(
+            ["代码片段" + str(i) + "：\n" + cs.code_content for i, cs in enumerate(errors)]
+        )
+        human_prompt = f"""
+                请分析以下若干C++代码片段，按要求给出最小修改操作：
+                {code_snippets}
+                """
+        response = self.agent.get_response(human_prompt)
+        print("LLM response:", response)
         # TODO:解析response为ModifyPattern对象列表
-        pattern = r"<(.*?)> 替换为 <(.*?)>"
-        matches = re.findall(pattern, response)
-        modify_patterns = [ModifyPattern(before_pattern=f"<{match[0]}>", after_pattern=f"<{match[1]}>") for match in matches]
+        delete_pattern = r"删除第 (\d+) 行的 (\w+)\。"
+        replace_pattern = r"将第 (\d+) 行的 (\w+) 替换为 (\w+)\。"
+        add_semicolon_pattern = r"在第 (\d+) 行的 (\w+)\(\.\.\.\) 调用末尾添加分号\。"
+        matches = re.findall(delete_pattern, response)
+        modify_patterns = [ModifyPattern(before_pattern=f"{match[1]}", after_pattern="<null>") for match in matches]
+        matches = re.findall(replace_pattern, response)
+        modify_patterns.extend([ModifyPattern(before_pattern=f"{match[1]}", after_pattern=f"{match[2]}") for match in matches])
+        matches = re.findall(add_semicolon_pattern, response)
+        modify_patterns.extend([ModifyPattern(before_pattern=f"{match[2]}(...)", after_pattern=f"{match[2]}(...);") for match in matches])
         return modify_patterns  
 
     @staticmethod
@@ -120,42 +131,36 @@ class CodeRewriter:
         for suggestion in advice:
             before_pattern = re.escape(suggestion.before_pattern)  # 将特殊字符转义
             after_pattern = re.escape(suggestion.after_pattern)  # 将特殊字符转义
-            if after_pattern == "<null>":
-                # 跨行匹配
-                multi_line_pattern = re.compile(before_pattern, re.DOTALL)  # DOTALL 允许'.'匹配换行符
-                
-                # 查找所有匹配的跨行代码块
-                matches = multi_line_pattern.finditer(content)
-                for match in matches:
-                    # 在跨行代码块的地方，用空白行替换掉，确保行数不变
-                    matched_text = content[match.start():match.end()]
-                    matched_lines = matched_text.splitlines()
-                    
-                    # 生成等长的空白行，确保删除的行数与原始行数一致
-                    replacement_lines = [' ' * len(line) for line in matched_lines]
-                    replacement_text = "\n".join(replacement_lines)
-                    
-                    # 替换掉代码块，保持原来的行数
-                    content = content[:match.start()] + replacement_text + content[match.end():]
-                    
-                    # 记录标签关系
-                    tagTarget_relations.append(DepRelation(match, suggestion))
-            # 对content进行正则匹配和替换
-            else:
-                new_content = []
-                for line in content.splitlines():
-                    match = re.search(before_pattern, line)
-                    if match:
-                        # 找到匹配内容，进行替换
-                        modified_line = re.sub(before_pattern, after_pattern, line)
-                        # 记录标签关系 (可以根据需要进行扩展)
+            # 跨行匹配
+            multi_line_pattern = re.compile(before_pattern, re.DOTALL)  # DOTALL 允许'.'匹配换行符
+            # 查找所有匹配的跨行代码块
+            for error in errors:
+                error_content = error.code_content
+                matches = multi_line_pattern.finditer(error_content)
+            
+                if after_pattern == "<null>":
+                    for match in matches:                    
+                        # 在跨行代码块的地方，用空白行替换掉，确保行数不变
+                        matched_text = content[match.start():match.end()]
+                        matched_lines = matched_text.splitlines()
+                        # 生成等长的空白行，确保删除的行数与原始行数一致
+                        replacement_lines = [' ' * len(line) for line in matched_lines]
+                        replacement_text = "\n".join(replacement_lines)
+                        # 替换掉代码块，保持原来的行数
+                        error_content = error_content[:match.start()] + replacement_text + error_content[match.end():]
+                        # 记录标签关系
                         tagTarget_relations.append(DepRelation(match, suggestion))
-                        new_content.append(modified_line)
-                    else:
-                        # 如果没有匹配到，就保留原始行
-                        new_content.append(line)
-                # 将修改后的内容拼接成新的字符串
-                content = "\n".join(new_content)
+                # 对content进行正则匹配和替换
+                else:
+                    for match in matches:
+                        matched_text = error_content[match.start():match.end()]
+                        # 在调用末尾添加分号
+                        replacement_text = re.sub(before_pattern, after_pattern, matched_text)
+                        # 替换掉代码块，保持原来的行数
+                        error_content = error_content[:match.start()] + replacement_text + error_content[match.end():]
+                        # 记录标签关系
+                        tagTarget_relations.append(DepRelation(match, suggestion))
+                content = content[:error.start_line - 1] + error_content + content[error.end_line:]
         return content, tagTarget_relations
 
     @staticmethod
@@ -186,7 +191,6 @@ class CodeRewriter:
             ph.map(file_paths, CodeRewriter.vectorize, file_errors)
         )
         errors = ph.de_file_and_merge(file_errors)
-        # file_tagTarget_relations_total = ph.map(file_paths, lambda: [])
         file_tagTarget_relations_total = ph.map(file_paths, lambda file_path: [])
         while len(errors) > 0:
             print(f"当前还有 {len(errors)} 处错误需要重写...")
@@ -200,6 +204,8 @@ class CodeRewriter:
                     ph.de_file_and_merge(file_error_vector_dicts)
                 )
                 advice = code_rewritter.getLLMadvice(selected_errors)
+                if advice == []:
+                    exit(0)
                 print(advice)
             else:
                 advice = CodeRewriter.getFallbackAdvice(errors)
