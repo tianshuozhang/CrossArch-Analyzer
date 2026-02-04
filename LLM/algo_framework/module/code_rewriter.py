@@ -6,30 +6,11 @@ from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 import numpy as np
 import re
-from langchain_openai import ChatOpenAI
-import os
-class Agent:
-    def __init__(self, system_prompt: str):
-        self.system_prompt = system_prompt
-        
-        llm_config = {
-            "model": "deepseek-v3:671b",  # 模型名称
-            "openai_api_key": "a21f78197ba7ada844c0479eb42459cf7be1a5cde7b57bc080e1123836654b23",
-            "openai_api_base": "https://uni-api.cstcloud.cn/v1",
-            "temperature": 0.2
-        }
-        self.llm = ChatOpenAI(**llm_config)
-    def get_response(self, user_prompt: str) -> str:
-        response = self.llm.invoke([
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": user_prompt}
-        ])
-        return response.content
-
+from module.agent import rewrite_Agent
 class CodeRewriter:
     def __init__(self):
         self.history_data = []
-        self.agent = Agent(system_prompts_for_codeRewriter)
+        self.agent = rewrite_Agent(system_prompts_for_codeRewriter)
 
     def recordHistory(self, errors: list[ErrorSnippet]):
         # TODO:现在先简单地只记录错误数？
@@ -152,7 +133,7 @@ class CodeRewriter:
                         # 替换掉代码块，保持原来的行数
                         content_lines[start_line:end_line] = error_content.splitlines()
                         # 记录标签关系
-                        tagTarget_relations.append(DepRelation(match, suggestion))
+                        # tagTarget_relations.append(DepRelation(match, suggestion))
                 # 对content进行正则匹配和替换
                 else:
                     for match in matches:
@@ -163,7 +144,7 @@ class CodeRewriter:
                         # 替换掉代码块，保持原来的行数
                         content_lines[start_line:end_line] = error_content.splitlines()
                         # 记录标签关系
-                        tagTarget_relations.append(DepRelation(match, suggestion))
+                        # tagTarget_relations.append(DepRelation(match, suggestion))
         return "\n".join(content_lines), tagTarget_relations
     
     @staticmethod
@@ -178,7 +159,7 @@ class CodeRewriter:
         file_paths: list[str],
         _,
         file_errors: FileResultDict[list[ErrorSnippet]],
-    ) -> FileResultDict[list[DepRelation]]:
+    ) -> tuple[FileResultDict[list[DepRelation]], list[ModifyPattern]]:
         def _read_file(p):
             with open(p[0], "r") as f:
                 return f.read()
@@ -195,6 +176,8 @@ class CodeRewriter:
         )
         errors = ph.de_file_and_merge(file_errors)
         file_tagTarget_relations_total = ph.map(file_paths, lambda file_path: [])
+
+        total_advice = []
         while len(errors) > 0:
             print(f"当前还有 {len(errors)} 处错误需要重写...")
             code_rewritter.recordHistory(errors)
@@ -207,11 +190,10 @@ class CodeRewriter:
                     ph.de_file_and_merge(file_error_vector_dicts)
                 )
                 advice = code_rewritter.getLLMadvice(selected_errors)
-                if advice == []:
-                    exit(0)
-                print(advice)
+                
             else:
                 advice = CodeRewriter.getFallbackAdvice(errors)
+            total_advice.extend(advice)
             file_content, file_tagTarget_relations = ph.map_out_tuple(
                 file_paths,
                 CodeRewriter.rewriteContent,
@@ -249,4 +231,4 @@ class CodeRewriter:
 
         ph.map(file_paths, _write_file, file_content, use_path=True)
 
-        return file_tagTarget_relations_total
+        return file_tagTarget_relations_total,total_advice

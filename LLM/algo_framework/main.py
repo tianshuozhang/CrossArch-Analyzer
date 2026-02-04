@@ -5,13 +5,14 @@ from module.code_analyzer import CodeAnalyzer
 
 import utils.project_helper as ph
 import utils.static_classify_tool as sct
+from utils.llm_prompts import system_prompts_for_reporter
+from module.agent import report_Agent
 
-
-def main(project_root):
-    # orig_file_paths, file_paths = PreScreener.prescreen(project_root)
-    orig_file_paths = ["LLM/testcase.h"]
-    file_paths = ["LLM/config/test.h"]
-    file_tagTarget_relations = CodeRewriter.rewrite(
+def main(project_root,user_prompt="请为我分析以下代码的架构依赖关系，并生成一份详细的报告。"):
+    orig_file_paths, file_paths = PreScreener.prescreen(project_root)
+    # orig_file_paths = ["LLM/testcase.h"]
+    # file_paths = ["LLM/config/test.h"]
+    file_tagTarget_relations, advice = CodeRewriter.rewrite(
         file_paths,
             *ph.map_out_tuple(file_paths, sct.scan_file, use_path=True),
     )
@@ -24,7 +25,26 @@ def main(project_root):
     file_analysis_results = ph.modify_file_path(
         file_analysis_results, file_paths, orig_file_paths
     )
-    return file_analysis_results
+
+    report_Agent_instance = report_Agent(system_prompts_for_reporter)
+
+    report = report_Agent_instance.get_response(
+        f"请基于以下建议和分析结果，根据用户的要求{user_prompt}，生成一份报告：\n\nllm提出的修改建议：{advice}\n\n分析结果：{file_analysis_results}"
+    )
+
+    result = api(file_analysis_results,report)
+
+    return result
+
+
+def api(file_analysis_results,report):
+    json_results = {}
+    json_results["report"] = report
+    json_results["file_tag_data"] = [{"file_path": k, "tag_data": [{"start":key[0],
+                    "end": key[1],
+                    "tag_name": value} for key,value in v.items()]} for k,v in file_analysis_results.data.items()]
+    return json_results
+
 
 if __name__ == "__main__":
     project_root = "LLM/config/eigen"
