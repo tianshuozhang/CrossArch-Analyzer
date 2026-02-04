@@ -2,7 +2,6 @@ import utils.static_classify_tool as sct
 from utils.llm_prompts import system_prompts_for_codeRewriter
 from utils.data_structures import *
 import utils.project_helper as ph
-from module.code_analyzer import CodeAnalyzer
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 import numpy as np
@@ -127,6 +126,7 @@ class CodeRewriter:
         # 因为之后还要对这个content用ts分析，如果行号变了，那么就是不同的tag_target了
         content,errors,advice = args        
         tagTarget_relations = []
+        content_lines = content.splitlines()
         # 遍历所有修改建议
         for suggestion in advice:
             before_pattern = re.escape(suggestion.before_pattern)  # 将特殊字符转义
@@ -136,18 +136,21 @@ class CodeRewriter:
             # 查找所有匹配的跨行代码块
             for error in errors:
                 error_content = error.code_content
+                start_line = error.start_line - 1  # 由于行号从1开始，列表索引从0开始
+                end_line = error.end_line
                 matches = multi_line_pattern.finditer(error_content)
             
                 if after_pattern == "<null>":
                     for match in matches:                    
                         # 在跨行代码块的地方，用空白行替换掉，确保行数不变
-                        matched_text = content[match.start():match.end()]
+                        matched_text = error_content[match.start():match.end()]
                         matched_lines = matched_text.splitlines()
                         # 生成等长的空白行，确保删除的行数与原始行数一致
                         replacement_lines = [' ' * len(line) for line in matched_lines]
                         replacement_text = "\n".join(replacement_lines)
-                        # 替换掉代码块，保持原来的行数
                         error_content = error_content[:match.start()] + replacement_text + error_content[match.end():]
+                        # 替换掉代码块，保持原来的行数
+                        content_lines[start_line:end_line] = error_content.splitlines()
                         # 记录标签关系
                         tagTarget_relations.append(DepRelation(match, suggestion))
                 # 对content进行正则匹配和替换
@@ -156,13 +159,13 @@ class CodeRewriter:
                         matched_text = error_content[match.start():match.end()]
                         # 在调用末尾添加分号
                         replacement_text = re.sub(before_pattern, after_pattern, matched_text)
-                        # 替换掉代码块，保持原来的行数
                         error_content = error_content[:match.start()] + replacement_text + error_content[match.end():]
+                        # 替换掉代码块，保持原来的行数
+                        content_lines[start_line:end_line] = error_content.splitlines()
                         # 记录标签关系
                         tagTarget_relations.append(DepRelation(match, suggestion))
-                content = content[:error.start_line - 1] + error_content + content[error.end_line:]
-        return content, tagTarget_relations
-
+        return "\n".join(content_lines), tagTarget_relations
+    
     @staticmethod
     def vectorize(errors: list[ErrorSnippet]) -> dict[ErrorSnippet, VectorType]:
         # TODO:计算errors的向量，返回<error,vector>的字典，VectorType的类型定义在utils/data_structures修改

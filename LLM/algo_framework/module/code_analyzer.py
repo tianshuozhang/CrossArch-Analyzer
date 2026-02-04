@@ -66,7 +66,6 @@ class CodeAnalyzer:
         file_tree_sitter_analysis_result: FileResultDict[TreeSitterAnalysisResult],
         _,
     ) -> FileResultDict[dict[tuple[int, int], set[str]]]:
-
         def merge_tagTarget_relations(args):
             tagTarget_relations, tree_sitter_analysis_result = args
             merged_tagTarget_relations = (

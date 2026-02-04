@@ -95,7 +95,7 @@ def _preprocess_code(
     return code_, collected_exprs
 
 
-def _pack_errors(error_tsNodes: List[TSNode]) -> TreeSitterOutput:
+def _pack_errors(error_tsNodes: List[TSNode], code_len: int) -> TreeSitterOutput:
     error_snippets = []
     for errror_tsNode in error_tsNodes:
         content_tsNode = findAncestorUntil(
@@ -104,6 +104,9 @@ def _pack_errors(error_tsNodes: List[TSNode]) -> TreeSitterOutput:
         if content_tsNode is None:
             continue
             raise NotImplementedError(f"遇到了没有考虑到的情况：{str(errror_tsNode)}")
+        if content_tsNode.start_point.row ==0 and content_tsNode.end_point.row == code_len -1:
+            # 整个文件都是错误的，就不记录了
+            continue
         error_snippets.append(
             ErrorSnippet(
                 code_content=content_tsNode.text.decode(),
@@ -491,7 +494,9 @@ def scan_code(code: str) -> TreeSitterOutput:
     root_tsNode, error_tsNodes = ts_parse(code)
     print(f"解析完成, 耗时：{time.time()-start}s")
     if len(error_tsNodes) > 0:
-        return _pack_errors(error_tsNodes)
+        res =_pack_errors(error_tsNodes,code_len=len(code.splitlines()))
+        if res.error_snippets != []:
+            return res
     codeNode_graph = _prepare(root_tsNode)
     print(f"符号表完成, 耗时：{time.time()-start}s")
     _linkToOutsideSymbols(root_tsNode, codeNode_graph)

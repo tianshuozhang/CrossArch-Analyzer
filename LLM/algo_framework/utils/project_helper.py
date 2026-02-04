@@ -1,7 +1,7 @@
 import sys
 sys.path.append('LLM/')
 
-from algo_framework.module.code_rewriter import CodeRewriter
+# from algo_framework.module.code_rewriter import CodeRewriter
 from utils.data_structures import *
 
 
@@ -68,7 +68,7 @@ def modify_file_path(
     file_paths_after: list[str],
 ) -> FileResultDict[list[str]]:
     fileResultDict_new = {}
-    for file_path_before in fileResultDict:
+    for file_path_before in fileResultDict.data.keys():
         idx = file_paths_before.index(file_path_before)
         fileResultDict_new[file_paths_after[idx]] = fileResultDict[file_path_before]
     return FileResultDict(data=fileResultDict_new)
