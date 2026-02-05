@@ -1,194 +1,366 @@
 from app.Analysis import Analysis
-from flask import jsonify, request, session
+from flask import jsonify, request, send_file
+import shutil, json, time
 
-from db.db_project import ProjectDB
-from db.db_code import CodeDB
-from db.db_report import ReportDB
+
+from utils.token import token_required
+from utils.file import execute_read_file_data
+from utils.path import *
+from utils.zip import *
+from utils.analysis import execute_analysis, execute_ask
+
 from db.db_user import UserDB
-import db.helper_file as helper_file
+from db.db_task import TaskDB
+from db.db_relation import RelationDB
+from db.db_file import FileDB
+from db.db_visualData import VisualizationDataDB
+
+user_db = UserDB()
+task_db = TaskDB()
+relation_db = RelationDB()
+file_db = FileDB()
+graph_db = VisualizationDataDB()
 
 
-from LLM.api import orchestrator
-import json
+@Analysis.route("/cancel", methods=["POST"])
+@token_required
+def cancel_task(user_id: int):
+    # === 1. 获取任务ID ===
+    task_id = request.args.get("task_id")
+    if not task_id:
+        return (
+            jsonify({"state": "failed", "description": "请提供任务ID", "rst": {}}),
+            400,
+        )
+    task_id = int(task_id)
 
-
-code_DB = CodeDB()
-report_DB = ReportDB()
-project_DB = ProjectDB()
-user_DB = UserDB()
-
-
-def get_stats(line_details):
-    print("line_details=\n")
-    print(line_details)
-    counts = {}
-    for line_detail in line_details:
-        archs = line_detail[2]
-        lineLength = line_detail[1][1] - line_detail[1][0] + 1
-        for arch in archs:
-            if arch not in counts:
-                counts[arch] = lineLength
-            else:
-                counts[arch] += lineLength
-    return {
-        "funcCount": 0,
-        "riscvFuncCount": 0,
-        "fileArch": "",
-        "counts": counts,
-    }
-
-
-def lineDetails2annotations(line_details):
-    annotations = []
-    for line_detail in line_details:
-        line_range = line_detail[1]
-        archs = line_detail[2]
-        for line in range(line_range[0], line_range[1] + 1):
-            annotations.append(
+    # === 2. 设置任务取消，并等待任务结束 ===
+    task_db.set_task_killed(task_id)
+    for _ in range(60):
+        time.sleep(0.5)
+        if task_db.get_task_killed(task_id):
+            break
+    else:
+        return (
+            jsonify(
                 {
-                    "line": line,
-                    "tags": list(archs),
-                    "type": "",
-                    "fn": "",
+                    "state": "failed",
+                    "description": "超时",
+                    "rst": {},
                 }
-            )
-    return annotations
+            ),
+            400,
+        )
+    # === 3. 清理任务资源 ===
+    shutil.rmtree(path_dir_analysis_task(user_id, task_id))
+    task_db.delete_task(task_id)
 
-
-@Analysis.route("/analyze", methods=["POST"])
-def analyze():
-    """用户上传项目，保存项目，并分析项目，将分析结果保存并返回：
-    1. 如果之前已上传过该项目，则不保存当前上传的项目；
-    2. 如果项目的分析结果已存在，则不会再次分析；"""
-    # username = session.get("username")
-    # # TMP: 游客模式
-    # print("username=" + str(username))
-    # if not username:
-    #     user_DB.addUser("demo", "123456")
-    #     session["username"] = "demo"
-    #     username = "demo"
-    #     print("username=" + str(session.get("username")))
-    # if not username:
-    #     return jsonify({"state": "failed", "description": "请先登录", "rst": None})
-    username = "demo"
-    userId = user_DB.getUserId(username)
-    if not userId:
-        userId = user_DB.addUser(username, "123456")
-    code = request.form.get("code")
-    code_name = request.form.get("codeId")
-    print(code)
-    project_name = code_name
-    project_id = project_DB.selectProjectId(userId, project_name)
-    if project_id == None:
-        # 之前没有上传过该项目，保存现在上传的项目
-        codes_num = 1
-        file_metadata = {
-            code_name: {
-                "content": code,
-                "file_name": code_name,
-                "file_size": len(code),
-                "file_type": "cpp",
+    return (
+        jsonify(
+            {
+                "state": "success",
+                "description": "成功取消",
+                "rst": {},
             }
-        }
-        # project_zip = request.files.get("project")
-        # file_metadata = helper_file.get_metadata_from_zip(project_zip.stream)
-        # project_name = project_zip.filename
-        # codes_num = sum(1 for meta in file_metadata.values() if meta["file_size"] > 0)
-        project_id = project_DB.addProject(
-            userId, project_name, helper_file.abs_path(project_name), codes_num
-        )
-        for file_path, meta in file_metadata.items():
-            print(file_path)
-            with open(helper_file.abs_path(file_path), "w") as f:
-                f.write(meta["content"])
-            code_DB.addCode(
-                project_id,
-                file_path,
-                None,
-                meta["file_name"],
-                meta["file_size"],
-                meta["file_type"],
-            )
-    print(project_id)
-    report_path = report_DB.selectReportPath(project_id)
-    if report_path == None:
-        # 之前没有分析过该项目，现在分析该项目
-        # TODO:目前先用project的第一个文件进行分析，因为现在只是单文件的分析
-        file_paths = code_DB.selectAllCodes(project_id)
-        first_file_path = file_paths[0]
-        code = helper_file.load_file(first_file_path)
-        print(first_file_path)
-        print()
-        print(code)
-        analysis_result = orchestrator.analyze_code(
-            code,
-            "请分析以下C/C++代码文件的架构依赖情况，并提供详细的分类报告。",
-            first_file_path,
-        )
-        report_name = project_name + "_report"
-        report_path = "report/" + report_name
-        helper_file.save_file(report_path, json.dumps(analysis_result))
-        report_path = helper_file.abs_path(report_path)
-        report_DB.addReport(project_id, report_path)
-    with open(report_path, "r") as f:
-        analysis_result = json.load(f)
-    # TODO:目前只保存第一个文件的parse_result
-    code_path = code_DB.selectAllCodes(project_id)[0]
-    parse_result_path = code_path.removesuffix(".c") + "_parse_result.json"
-    with open(parse_result_path, "w") as f:
-        f.write(json.dumps(analysis_result["line_details"]))
-    code_DB.modifyCodeParseResult(project_id, code_path, parse_result_path)
-    # code_paths = code_DB.selectAllCodes(project_id)
-    # for code_path in code_paths:
-    #     if code_path:
-
-    annotations = lineDetails2annotations(analysis_result["line_details"])
-    status = get_stats(analysis_result["line_details"])
-    report = analysis_result["llm_enhanced_analysis"]["natural_language_report"]
-    print("status=\n")
-    print(status)
-    return jsonify(
-        {
-            "state": "success",
-            "description": "分析完成",
-            "rst": {
-                "reply": "已根据需求完成分类",
-                "annotations": annotations,
-                "report": report,
-                "stats": status,
-            },
-        }
+        ),
+        200,
     )
 
 
-@Analysis.route("/chat", methods=["POST"])
-def chat():
-    # project_name = request.form.get("projectname")
-    # code_path = request.form.get("codepath")
-    code_path = request.form.get("codeId")
-    project_name = code_path.split("/")[0]
-    prompt = request.form.get("prompt")
-    # username = session.get("username")
-    # if not username:
-    #     return jsonify({"state": "failed", "description": "请先登录", "rst": None})
-    username = "demo"
-    userId = user_DB.getUserId(username)
-    if not userId:
-        userId = user_DB.addUser(username, "123456")
-    project_id = project_DB.selectProjectId(userId, project_name)
-    if not project_id:
-        return jsonify({"state": "failed", "description": "项目不存在", "rst": None})
-    code_path = code_DB.selectOneCodePath(project_id, code_path)
-    analysis_result = orchestrator.analyze(prompt, code_path)
-    if analysis_result:
-        return jsonify(
+@Analysis.route("/progress", methods=["GET"])
+@token_required
+def get_progress(user_id: int):
+    # === 1. 获取任务ID ===
+    task_id = request.args.get("task_id")
+    task_id = int(task_id)
+    # === 2. 获取任务进度 ===
+    progress = task_db.get_task_progress(task_id)
+    if progress is None:
+        return (
+            jsonify({"state": "failed", "description": "任务不存在", "rst": {}}),
+            404,
+        )
+
+    # === 3. 返回任务进度 ===
+    return (
+        jsonify(
             {
                 "state": "success",
-                "description": "分析完成",
-                "rst": analysis_result["llm_enhanced_analysis"][
-                    "natural_language_report"
-                ],
+                "description": "success",
+                "rst": {"progress": progress},
             }
+        ),
+        200,
+    )
+
+
+@Analysis.route("/ask", methods=["POST"])
+@token_required
+def ask(user_id: int):
+    # === 1. 获取用户提问的内容，以及当前打开的文件路径 ===
+    question = request.form.get("question")
+    if not question:
+        return (
+            jsonify({"state": "failed", "description": "请提供问题", "rst": {}}),
+            400,
+        )
+
+    # === 2. 获取当前打开的项目路径 ===
+    opened_project_id = user_db.get_opened_project_id(user_id)
+    if not opened_project_id:
+        return (
+            jsonify(
+                {
+                    "state": "failed",
+                    "description": "请先打开一个项目",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
+
+    # === 3. 启动分析任务 ===
+    answer = execute_ask(question, user_id)
+
+    # === 4. 答案中，如果graph非空，那么保存graph到打开目录里 ===
+    if answer["graph"]:
+        graph_id = graph_db.add_visualization_data(
+            natural_language_requirement=question,
+            title=answer["graph"]["title"],
+            project_id=opened_project_id,
+        )
+        with open(
+            path_file_open_graph_item(user_id=user_id, graph_id=graph_id), "w"
+        ) as f:
+            json.dump(answer["graph"]["option"], f)
+
+    # === 5. 返回答案 ===
+    return (
+        jsonify(
+            {
+                "state": "success",
+                "description": "success",
+                "rst": {"answer": answer["response"], "graph": answer["graph"]},
+            }
+        ),
+        200,
+    )
+
+
+@Analysis.route("/fetch", methods=["POST"])
+@token_required
+def fetch(user_id: int):
+    # === 1. 获取项目ID和任务ID ===
+    project_id = request.form.get("project_id")
+    if not project_id:
+        return (
+            jsonify({"state": "failed", "description": "请提供项目ID", "rst": {}}),
+            400,
+        )
+    project_id = int(project_id)
+    task_id = request.form.get("task_id")
+    if not task_id:
+        return (
+            jsonify({"state": "failed", "description": "请提供任务ID", "rst": {}}),
+            400,
+        )
+    task_id = int(task_id)
+    cur_open_file_path = request.form.get("file_path")
+    if cur_open_file_path is None:
+        return (
+            jsonify(
+                {
+                    "state": "failed",
+                    "description": "请提供当前打开的文件路径，如果没有打开文件，需要提供一个空字串",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
+
+    # === 2. 检查任务进度是否为100% ===
+    if task_db.get_task_progress(task_id) != 100:
+        return (
+            jsonify(
+                {
+                    "state": "failed",
+                    "description": "任务未完成，请稍后再试",
+                    "rst": {},
+                }
+            ),
+            400,
+        )
+
+    # === 3. 取出任务结果，并删除分析目录 ===
+    with open(path_file_analysis_task_result(user_id, task_id), "r") as f:
+        analysis_result = json.load(f)
+    shutil.rmtree(path_dir_analysis_task(user_id, task_id))
+    # === 4. 将文件分析报告保存到json里，将架构标记结果记录到数据库里 ===
+    zip_add_to_zip(
+        path_file_save_zip(user_id=user_id, project_id=project_id),
+        content=[
+            ("report.json", analysis_result["report"]),
+        ],
+    )
+
+    file_tag_data = analysis_result["file_tag_data"]
+    for file_tag_data_item in file_tag_data:
+        file_path = file_tag_data_item["file_path"]
+        file_id = file_db.get_file_id_by_file_path(file_path, project_id)
+        if file_id is None:
+            return (
+                jsonify(
+                    {
+                        "state": "failed",
+                        "description": "分析了不存在的文件",
+                        "rst": {},
+                    }
+                ),
+                404,
+            )
+        for tag_data_item in file_tag_data_item["tag_data"]:
+            relation_db.add_relation(
+                start=tag_data_item["start"],
+                end=tag_data_item["end"],
+                arch_names=tag_data_item["arch_names"],
+                project_id=project_id,
+                file_id=file_id,
+            )
+    # === 5. 删除任务 ===
+    task_db.delete_task(task_id)
+    # === 6. 读取当前打开文件的内容并返回 ===
+    opened_project_id = user_db.get_opened_project_id(user_id=user_id)
+    if cur_open_file_path == "":
+        return (
+            jsonify(
+                {
+                    "state": "success",
+                    "description": "success",
+                    "rst": {},
+                }
+            ),
+            200,
         )
     else:
-        return jsonify({"state": "failed", "description": "分析失败", "rst": None})
+        if not opened_project_id:
+            return (
+                jsonify(
+                    {
+                        "state": "failed",
+                        "description": "只有一个项目被打开时才需要提供一个非空的字符串",
+                        "rst": {},
+                    }
+                ),
+                400,
+            )
+        else:
+            try:
+                file_data = execute_read_file_data(cur_open_file_path, user_id)
+            except:
+                return (
+                    jsonify(
+                        {"state": "failed", "description": "没有找到文件", "rst": {}}
+                    ),
+                    404,
+                )
+            return (
+                jsonify(
+                    {
+                        "state": "success",
+                        "description": "success",
+                        "rst": {"file_data": file_data},
+                    }
+                ),
+                200,
+            )
+
+
+@Analysis.route("/analysis", methods=["POST"])
+@token_required
+def analysis(user_id: int):
+    # === 1. 获取要分析的项目ID ===
+    project_id = request.form.get("project_id")
+    if not project_id:
+        return (
+            jsonify({"state": "failed", "description": "请提供项目ID", "rst": {}}),
+            400,
+        )
+    project_id = int(project_id)
+
+    # === 2. 将项目复制到analysis目录下，如果是当前项目，就复制，如果是其他项目，就解压 ===
+    task_id = task_db.add_task(project_id)
+    opened_project_id = user_db.get_opened_project_id(user_id=user_id)
+    analysis_project_root = path_dir_analysis_task(user_id, task_id)
+    if opened_project_id == project_id:
+        shutil.copytree(path_dir_open_content(user_id=user_id), analysis_project_root)
+    else:
+        zip_extract_file_to(
+            src_zip_path=path_file_save_zip(user_id, project_id),
+            dst_dir_path=analysis_project_root,
+        )
+
+    # === 3. 启动分析任务 ===
+    execute_analysis(task_id=task_id, user_id=user_id)
+
+    # === 4. 返回结果 ===
+    return (
+        jsonify(
+            {
+                "state": "success",
+                "description": "success",
+                "rst": {
+                    "task_id": task_id,
+                },
+            }
+        ),
+        200,
+    )
+
+
+@Analysis.route("/report", methods=["POST"])
+@token_required
+def report(user_id: int):
+    # === 1. 获取要查看的项目ID ===
+    project_id = request.form.get("project_id")
+    if not project_id:
+        return (
+            jsonify({"state": "failed", "description": "请提供项目ID", "rst": {}}),
+            400,
+        )
+    project_id = int(project_id)
+
+    # === 2. 获取文字项目报告 ===
+    try:
+        text_report_content = zip_read_file_from_zip(
+            path_file_save_zip(user_id=user_id, project_id=project_id), "report.json"
+        )
+    except:
+        return (
+            jsonify(
+                {
+                    "state": "failed",
+                    "description": "没有找到项目报告",
+                    "rst": {},
+                }
+            ),
+            404,
+        )
+
+    # === 3. 获取架构标注报告 ===
+    tag_data = relation_db.get_relations_by_project_id(project_id)
+    arch_lines_tag_data = {}
+    for tag_data_item in tag_data:
+        arch_names = tag_data_item["arch_names"]
+        start, end = tag_data_item["start"], tag_data_item["end"]
+        for arch_name in arch_names:
+            if arch_name not in arch_lines_tag_data:
+                arch_lines_tag_data[arch_name] = []
+            arch_lines_tag_data[arch_name] += list(range(start, end + 1))
+
+    arch_report_content = json.dumps(arch_lines_tag_data, indent=2)
+
+    # === 4. 拼接报告 ===
+    report_content = f"文字分析报告如下：\n{text_report_content}\n架构标注结构化报告如下：\n{arch_report_content}"
+
+    # === 5. 返回项目报告 ===
+    return send_file(report_content, download_name="report.txt", as_attachment=True)

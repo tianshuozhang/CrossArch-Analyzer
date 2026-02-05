@@ -1,13 +1,4 @@
 # coding=UTF-8
-import os
-import sys
-
-os.chdir("../")
-print(os.getcwd())
-sys.path.append(os.getcwd())
-sys.path.append(os.path.join(os.getcwd(), "LLM"))
-sys.path.append(os.path.join(os.getcwd(), "LLM/core"))
-
 from flask import Flask
 from app import app
 
@@ -18,7 +9,8 @@ def index():  # 试图函数
 
 
 if __name__ == "__main__":
-    app.config["SECRET_KEY"] = "TPmi4aLWRbyVq8zu9v82dWYW1"
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    app.config["UPLOAD_ROOT"] = os.path.join(BASE_DIR, "uploads")
+    # app.config["SECRET_KEY"] = "TPmi4aLWRbyVq8zu9v82dWYW1"
+    app.config["JWT_SECRET_KEY"] = "CbE5qy48I-LsotmKrm9BgOVFiQVqc4lNJW6uqzcXJtI"
+    app.config["ROOT"] = os.path.dirname(os.path.abspath(__file__))
+
     app.run(port=5000)
