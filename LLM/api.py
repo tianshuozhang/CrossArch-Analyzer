@@ -1,48 +1,109 @@
-import os
-from utils import setup_environment
-from agents.enhanced_orchestrator import EnhancedOrchestratorAgent
-from agents.PromptParser import PromptParser
-from config.config import test_all_case
-setup_environment()
-
-llm_config = {
-    "model": "deepseek-v3:671b",  # 模型名称
-    "openai_api_key": os.environ["OPENAI_API_KEY"],
-    "openai_api_base": os.environ["OPENAI_API_BASE"],
-    "temperature": 0.2,
-}
-
-orchestrator = EnhancedOrchestratorAgent(llm_config, "main_orchestrator")
+import time
+from core.Static_CodeAnalyzer import Static_CodeAnalyzer
+from agents.file_utils import FileScanner, ArchitectureHeuristics
+from sentence_transformers import SentenceTransformer
+import faiss
+import numpy as np
+from tqdm import tqdm
+from sklearn.cluster import KMeans
 
 if __name__ == "__main__":
-    
-    '''
-    接收前端用户输入的代码和分析需求，调用Orchestrator进行分析，并返回分析结果。用户的分析需求被分为两大类：
-    1. 详细分析（detailed analysis）：用户希望获得全面深入的架构依赖报告，包括代码中所有架构相关的细节。
-    2. 简要分析（easy analysis）：用户只需要一个高层次的概览，突出显示主要的架构依赖点，而不需要深入的细节。
-    文件名和代码字符串从用户上传的文件中获取。
-    '''
-    detailed_msg = "请分析以下C/C++代码文件的架构依赖情况，并提供详细的分类报告。"
-    easy_msg = "请简要分析以下C/C++代码文件的架构依赖情况。"
+    project_path = "LLM/config/eigen"
+    # 扫描项目文件
+    file_scanner = FileScanner(project_path)
+    files = file_scanner.scan_all_files()
+    source_files = files["source_files"]
 
-    filename, code = test_all_case #一个测试用例，文件名和代码字符串
+    pre_screened = []
 
-    print(filename,code)
+    for file_path in source_files:
+        is_arch, _ = ArchitectureHeuristics.is_likely_arch_related(file_path, None)
+        if is_arch:
+            pre_screened.append(file_path)
 
-    '''
-    如果用户输入的代码不是通过文件上传，而是直接输入在文本框和需求命令混合在一起的，则使用PromptParser进行解析，提取代码和需求命令两部分内容。
-    '''
-    # prompt_parser = PromptParser(llm_config=llm_config)
-    # user_prompt = "请分析以下C++代码的架构依赖：\n```cpp\n#include <iostream>\nvoid test() {\n    asm(\"mov r0, #1\");\n}\n```\n特别是其中的汇编代码，并提供重构建议。"
-    # code_ontent, requirements = prompt_parser.parse_promt(user_prompt)
+    files_content = file_scanner.batch_read_files(pre_screened)
 
+    # 初始化编码模型
+    embedding_model = SentenceTransformer("./LLM/models/all-MiniLM-L6-v2", device="cpu")
+    # 初始化向量数据库
+    dimension = embedding_model.get_sentence_embedding_dimension()
 
-    report = orchestrator.analyze_code(code, detailed_msg, filename,"1") #report本身是一个包含详细分析结果的字典，包含多个层次的信息。
+    # 初始化静态代码分析器
+    analyzer = Static_CodeAnalyzer()
 
-    print(report["llm_enhanced_analysis"]["natural_language_report"]) #LLM的自然语言报告
-    print(report["llm_enhanced_analysis"]["json_data"]) #LLM的结构化JSON数据，如果是简要分析这部分是none，如果是详细分析则包含丰富的信息。
+    high_similarity_errors = []
 
+    num_errorlines = 0
 
-    report = orchestrator.analyze(easy_msg, filename,"1")
-    print(report["llm_enhanced_analysis"]["natural_language_report"]) #LLM的自然语言报告
-    print(report["llm_enhanced_analysis"]["json_data"]) #LLM的结构化JSON数据，如果是简要分析这部分是none，如果是详细分析则包含丰富的信息。
+    # 记录总的时间
+    total_start_time = time.time()
+
+    # 初始化时间记录变量
+    total_analysis_time = 0
+    total_encoding_time = 0
+    total_similarity_time = 0
+
+    print("开始分析预筛选的架构相关文件...")
+
+    # 如何遍历一个字典的值和键,使用tqdm显示进度条
+    for file, content in tqdm(files_content.items(), desc="Analyzing files"):
+        try:
+            # 记录静态分析时间
+            analysis_start_time = time.time()
+            analysis_result, error_lines = analyzer.scan_code(content)
+            analysis_end_time = time.time()
+            total_analysis_time += analysis_end_time - analysis_start_time
+        except Exception as e:
+            print(f"❌ 分析文件失败 {file}: {e}")
+            continue
+
+        # 记录编码时间
+        encoding_start_time = time.time()
+        embeddings = [
+            embedding_model.encode(file_scanner.read_file(file, line - 1, line + 1))
+            for line in error_lines
+        ]
+        encoding_end_time = time.time()
+        total_encoding_time += encoding_end_time - encoding_start_time
+
+        num_errorlines += len(error_lines)
+
+        simlarity_start_time = time.time()
+        # 使用 K-means 聚类来选择代表性错误行
+        if len(embeddings) > 1:  # 确保至少有两个错误行
+            kmeans = KMeans(n_clusters=1, random_state=0)  # 选择1个聚类中心
+            kmeans.fit(embeddings)
+
+            # 获取聚类中心的索引（最具代表性的错误行）
+            closest_idx = np.argmin(
+                np.linalg.norm(embeddings - kmeans.cluster_centers_, axis=1)
+            )
+            representative_error_line = error_lines[closest_idx]
+
+            # 存储最具代表性的错误行
+            high_similarity_errors.append(
+                {"file": file, "representative_error_line": representative_error_line}
+            )
+        else:
+            # 如果只有一个错误行，直接选择
+            high_similarity_errors.append(
+                {"file": file, "representative_error_line": error_lines[0]}
+            )
+        total_similarity_time += time.time() - simlarity_start_time
+
+    total_end_time = time.time()
+    total_time = total_end_time - total_start_time
+
+    # 打印时间信息
+    print("\n分析结束！")
+    print(f"总耗时: {total_time:.2f} seconds")
+    print(f"静态分析总时间: {total_analysis_time:.2f} seconds")
+    print(f"编码总时间: {total_encoding_time:.2f} seconds")
+    print(f"每条错误行平均编码时间: {total_encoding_time/num_errorlines:.2f} seconds")
+    print(f"相似度计算总时间: {total_similarity_time:.2f} seconds")
+
+    # 打印每个文件的最具代表性的错误行
+    for item in high_similarity_errors:
+        print(
+            f"File: {item['file']}, Representative Error Line: {item['representative_error_line']}"
+        )

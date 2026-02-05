@@ -1,39 +1,45 @@
-import sys
 import os
-import time
+from agents.file_utils import FileScanner
+import numpy as np
+from tqdm import tqdm
+from langchain_openai import ChatOpenAI
+from utils import setup_environment
 
-sys.path.append(os.getcwd())
-sys.path.append(os.path.join(os.getcwd(), "LLM"))
-sys.path.append(os.path.join(os.getcwd(), "LLM/core"))
+if __name__ == "__main__":
+    project_path = "LLM/config/eigen"
+    setup_environment()
 
-from LLM.api import orchestrator
+    llm_config = {
+        "model": "deepseek-v3:671b",
+        "openai_api_key": os.environ["OPENAI_API_KEY"],
+        "openai_api_base": os.environ["OPENAI_API_BASE"],
+        "temperature": 0.2,
+    }
+    llm = ChatOpenAI(**llm_config)
+    # 扫描项目文件
+    file_scanner = FileScanner(project_path)
+    files = file_scanner.scan_all_files()
+    source_files = files["source_files"]
+    # 优化的prompt
+    prompt = """
+    你是一个资深的软件架构师，请帮助我分析以下文件路径，判断它们是否与软件架构相关。文件列表中可能有一些非架构相关的文件路径，请你仔细分析每个路径的名称和结构。大概有5%-20%的文件是架构相关的。
+    返回与架构相关的文件路径，每个路径占一行。只返回文件路径，不要附加任何额外的信息，最后一行给出原本的文件列表长度与筛选出来的文件列表长度。
+    这里是文件列表：
+    {source_files}
+    """
 
-code = """
-#include <stdio.h>
-// 多架构支持示例
-#if !defined(__arm__)
-    #define ARCH_NAME \\
-        "ARM"
-    #define ARCH_FEATURE "NEON"
-#elif defined(__x86_64__) 
-    #define ARCH_NAME "x86_64" __attribute__((__riscv))
-    #define ARCH_FEATURE "SSE/AVX"
-#elif defined(__riscv) 
-    #define ARCH_NAME "RISC-V" __attribute__((test))
-    #define ARCH_FEATURE "V Extension"
-#else
-    #define ARCH_NAME "Unknown"
-    #define ARCH_FEATURE "Generic"
-#endif
-"""
-first_file_path = (
-    "/home/yangzheng/CrossArch-Analyzer/code-annotation-backend-master/uploads/hello.c"
-)
-time0 = time.time()
-analysis_result = orchestrator.analyze_code(
-    code,
-    "请分析以下C/C++代码文件的架构依赖情况，并提供详细的分类报告。",
-    first_file_path,
-)
-# print(analysis_result["line_details"])
-print("Time used:", time.time() - time0)
+    # 流式调用LLM并输出结果
+    response = llm.stream(
+        [
+            {
+                "role": "user",
+                "content": prompt.format(source_files="\n".join(source_files)),
+            }
+        ]
+    )
+
+    # response = llm.stream_usage([{"role": "user", "content": prompt.format(source_files="\n".join(source_files))}])
+
+    print("可能的架构相关文件有：")
+    for chunk in response:
+        print(chunk.content, end="", flush=True)

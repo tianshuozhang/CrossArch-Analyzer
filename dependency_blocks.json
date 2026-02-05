@@ -1,0 +1,15 @@
+{
+  "Eigen\\src\\Core\\arch\\AltiVec\\MatrixProductCommon.h": {
+    "status": "manual_success",
+    "dominant_architecture": "Generic",
+    "arch_related_blocks": [
+      {
+        "start_line": 21,
+        "end_line": 41,
+        "architecture": "Generic",
+        "code_fragment": "EIGEN_ALWAYS_INLINE",
+        "reason": "Generic matrix operations with potential platform optimizations"
+      }
+    ]
+  }
+}
