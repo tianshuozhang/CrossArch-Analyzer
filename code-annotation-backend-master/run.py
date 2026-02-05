@@ -2,6 +2,8 @@
 from flask import Flask
 from app import app
 
+import os
+
 
 @app.route("/")  # 装饰器，url，路由
 def index():  # 试图函数

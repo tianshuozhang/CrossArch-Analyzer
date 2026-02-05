@@ -1,0 +1,10 @@
+Flask
+Werkzeug
+flask-cors
+PyMySQL
+tree-sitter
+tree-sitter-cpp
+sentence-transformers
+openai
+langchain-core
+faiss-cpu
