@@ -3,7 +3,7 @@ from db.db_task import TaskDB
 task_db = TaskDB()
 
 
-def update_progress(task_id: int, new_progress: int) -> dict:
+def update_progress(task_id: int, new_progress: int):
     """更新任务进度"""
     task_db.update_progress(task_id, new_progress)
 
@@ -18,3 +18,14 @@ def check_task_killed(task_id: int) -> bool:
 def clear_task_killed():
     """表示llm的清理工作完成"""
     task_db.clear_task_killed()
+
+
+import sys
+
+
+def check_and_update(task_id: int, new_progress: int):
+    """llm如果没有什么清理工作要做的话，使用这个简单函数"""
+    if check_task_killed(task_id):
+        clear_task_killed()
+        sys.exit(0)
+    update_progress(task_id, new_progress)

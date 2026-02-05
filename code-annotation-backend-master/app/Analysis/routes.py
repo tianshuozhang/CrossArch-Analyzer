@@ -208,6 +208,7 @@ def fetch(user_id: int):
         file_path = file_tag_data_item["file_path"]
         file_id = file_db.get_file_id_by_file_path(file_path, project_id)
         if file_id is None:
+            print(file_path)
             return (
                 jsonify(
                     {

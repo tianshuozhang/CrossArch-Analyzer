@@ -1,10 +1,13 @@
-from module.agent import rewrite_Agent
+from algo_framework.module.agent import rewrite_Agent
 
-import utils.static_classify_tool as sct
-from utils.llm_prompts import system_prompts_for_codeRewriter
-from utils.data_structures import *
-import utils.project_helper as ph
-from utils.rela_path import resource_path
+import algo_framework.utils.static_classify_tool as sct
+from algo_framework.utils.llm_prompts import system_prompts_for_codeRewriter
+from algo_framework.utils.data_structures import *
+import algo_framework.utils.project_helper as ph
+from algo_framework.utils.rela_path import resource_path
+from algo_framework.utils.global_vars import task_data
+
+from llm_tools.task import check_and_update
 
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
@@ -219,6 +222,8 @@ class CodeRewriter:
             with open(p, "w") as f:
                 f.write(content)
 
+        check_and_update(task_data["task_id_saved"], 7)
+
         code_rewritter = CodeRewriter()
         file_content = ph.map(file_paths, _read_file, use_path=True)
         file_error_vector_dicts: FileResultDict[dict[ErrorSnippet, VectorType]] = (
@@ -229,6 +234,10 @@ class CodeRewriter:
 
         total_advice = []
         while len(errors) > 0:
+            check_and_update(task_data["task_id_saved"], task_data["task_progress"])
+            task_data["task_progress"] += 1
+            if task_data["task_progress"] > 65:
+                task_data["task_progress"] = 65
             print(f"当前还有 {len(errors)} 处错误需要重写...")
             code_rewritter.recordHistory(errors)
             useLLM = code_rewritter.choose_llm_or_fallback(
@@ -285,5 +294,7 @@ class CodeRewriter:
             )
 
         ph.map(file_paths, _write_file, file_content, use_path=True)
+
+        check_and_update(task_data["task_progress"], 68)
 
         return file_tagTarget_relations_total, total_advice

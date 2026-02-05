@@ -41,10 +41,14 @@ class RelationDB(DBc):
 
     def add_relation(self, start, end, arch_names: list[str], project_id, file_id):
         """添加关系"""
+        arch_names = [name for name in arch_names if name != "irrelevant"]
         arch_names_str = ", ".join(arch_names)
         placeholders = ", ".join(["%s"] * len(arch_names))
         values = [1] * len(arch_names)
-        sql = f"INSERT INTO snippet_arch_tag_relations (start, end, {arch_names_str}, file_id, project_id) VALUES (%s, %s, {placeholders}, %s, %s)"
+        if arch_names_str.strip() != "":
+            sql = f"INSERT INTO snippet_arch_tag_relations (start, end, {arch_names_str}, file_id, project_id) VALUES (%s, %s, {placeholders}, %s, %s)"
+        else:
+            sql = f"INSERT INTO snippet_arch_tag_relations (start, end, file_id, project_id) VALUES (%s, %s, %s, %s)"
         self.execute(sql, (start, end, *values, file_id, project_id))
         return self.cursor.lastrowid
 

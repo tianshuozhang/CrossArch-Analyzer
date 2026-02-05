@@ -1,4 +1,4 @@
-from utils.rela_path import resource_path
+from algo_framework.utils.rela_path import resource_path
 
 import json
 import pickle

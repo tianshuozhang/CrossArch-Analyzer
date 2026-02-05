@@ -45,11 +45,12 @@ def execute_open_project(user_id: int, project_id: int):
 
 def register_project_files(zip_path: str, project_id: int):
     for file_path in zip_read_namelist(zip_path):
-        file_db.add_file(
-            name=path_tool_basename(file_path),
-            project_id=project_id,
-            path=file_path,
-        )
+        if file_path.startswith("content/"):
+            file_db.add_file(
+                name=path_tool_basename(file_path),
+                project_id=project_id,
+                path=file_path[len("content/") :],
+            )
 
 
 def make_file_tree_from_zip(zip_path: str) -> list:

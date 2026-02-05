@@ -95,6 +95,7 @@ class TestProjectIntegration:
         project_1 = make_a_zip(
             zip_base_name="project_1",
             zip_content=["src/hello.cpp", "graph/", "hello/"],
+            cp_dir="test_eigen",
         )
         make_a_post(
             test_client=test_client,
@@ -121,6 +122,16 @@ class TestProjectIntegration:
             if r["progress"] == 100:
                 break
             time.sleep(1)
+
+        make_a_post(
+            test_client=test_client,
+            headers=headers,
+            url="/analysis/fetch",
+            data={"task_id": str(1), "project_id": str(1), "file_path": ""},
+            print_content=[
+                ["file_data"],
+            ],
+        )
 
     def test_project_end_to_end_flow_project(self, test_client):
         """测试的完整项目流程：

@@ -1,6 +1,6 @@
-from utils.state_manager import StateManager
-from utils.memory_manager import MemoryManager
-from utils.rela_path import resource_path
+from algo_framework.utils.state_manager import StateManager
+from algo_framework.utils.memory_manager import MemoryManager
+from algo_framework.utils.rela_path import resource_path
 
 from langchain_openai import ChatOpenAI
 from langchain_classic.memory import ConversationBufferWindowMemory

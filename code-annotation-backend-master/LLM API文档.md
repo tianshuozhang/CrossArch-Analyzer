@@ -20,7 +20,7 @@ analyze需要返回的结果如下：
                 {
                     "start":123,
                     "end": 124,
-                    "tag_name": ["架构名如","arm","x86","irrelevant"],
+                    "arch_names": ["架构名如","arm","x86","irrelevant"],
                 }
             ]
         }

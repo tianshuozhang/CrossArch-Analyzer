@@ -69,14 +69,20 @@ def make_a_zip(
         "include/hello.h",
         "CMakeLists.txt",
     ],
+    cp_dir=None,
 ):
     def gen_random_str(length=100):
         return "".join(random.choices(string.ascii_lowercase + string.digits, k=length))
 
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-        for file_path in zip_content:
-            zip_file.writestr(file_path, gen_random_str())
+        if cp_dir:
+            with open(cp_dir + "/PacketMath.h", "r") as f:
+                data = f.read()
+                zip_file.writestr("PacketMath.h", data)
+        else:
+            for file_path in zip_content:
+                zip_file.writestr(file_path, gen_random_str())
     zip_buffer.seek(0)
     test_file = (zip_buffer, zip_base_name + ".zip")
     return test_file
@@ -93,7 +99,10 @@ def make_a_post(
         headers=headers,
     )
     json_data = response.get_json()
+    print(json_data["description"])
     for print_item in print_content:
+        if print_item[0] not in json_data["rst"]:
+            continue
         start = json_data["rst"][print_item[0]]
         prefix = f"response[{print_item[0]}]"
         for name in print_item[1:]:

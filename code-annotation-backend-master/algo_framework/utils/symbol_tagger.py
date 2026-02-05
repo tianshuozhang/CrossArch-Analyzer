@@ -1,5 +1,5 @@
-from utils.data_structures import *
-from utils.rela_path import resource_path
+from algo_framework.utils.data_structures import *
+from algo_framework.utils.rela_path import resource_path
 
 from typing import List, Dict
 import re

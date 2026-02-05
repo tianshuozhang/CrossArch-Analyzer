@@ -1,6 +1,7 @@
-from utils.data_structures import *
-import utils.project_helper as ph
-from utils.symbol_tagger import tag_symbol
+from algo_framework.utils.data_structures import *
+import algo_framework.utils.project_helper as ph
+from algo_framework.utils.symbol_tagger import tag_symbol
+
 import networkx as nx
 
 

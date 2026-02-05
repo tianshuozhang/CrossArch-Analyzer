@@ -1,6 +1,6 @@
-from utils.code_processor import remove_regex
-from utils.data_structures import *
-from utils.ts_helper import (
+from algo_framework.utils.code_processor import remove_regex
+from algo_framework.utils.data_structures import *
+from algo_framework.utils.ts_helper import (
     TSTypes,
     SExpressionTemplate,
     ts_parse,
@@ -8,6 +8,8 @@ from utils.ts_helper import (
     findTSNodesWithSExpr,
     findAncestorUntil,
 )
+from algo_framework.utils.global_vars import task_data
+from llm_tools.task import check_and_update
 
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Set
@@ -503,6 +505,8 @@ def scan_code(code: str) -> TreeSitterOutput:
 
     start = time.time()
     code, collected_exprs = _preprocess_code(code)
+    task_data["task_progress"] += 1
+    check_and_update(task_data["task_id_saved"], task_data["task_progress"])
     print(f"预处理完成, 耗时：{time.time()-start}s")
     root_tsNode, error_tsNodes = ts_parse(code)
     print(f"解析完成, 耗时：{time.time()-start}s")
@@ -511,14 +515,23 @@ def scan_code(code: str) -> TreeSitterOutput:
         if res.error_snippets != []:
             return res
     codeNode_graph = _prepare(root_tsNode)
+
+    task_data["task_progress"] += 1
+    check_and_update(task_data["task_id_saved"], task_data["task_progress"])
     print(f"符号表完成, 耗时：{time.time()-start}s")
     _linkToOutsideSymbols(root_tsNode, codeNode_graph)
     print(f"条件宏链接完成, 耗时：{time.time()-start}s")
     _makeTagTargetLink(codeNode_graph)
+
+    task_data["task_progress"] += 1
+    check_and_update(task_data["task_id_saved"], task_data["task_progress"])
     print(f"标记目标链接完成, 耗时：{time.time()-start}s")
     _makeUserDefinedLink(codeNode_graph)
     print(f"用户定义符号链接完成, 耗时：{time.time()-start}s")
     _make_collected_exprs_link(codeNode_graph, collected_exprs)
+
+    task_data["task_progress"] += 1
+    check_and_update(task_data["task_id_saved"], task_data["task_progress"])
     print(f"预处理符号链接完成, 耗时：{time.time()-start}s")
     result = _pack_analysis_result(codeNode_graph)
     print(f"打包结果完成, 耗时：{time.time()-start}s")
@@ -526,6 +539,8 @@ def scan_code(code: str) -> TreeSitterOutput:
 
 
 def scan_file(file_path: tuple[str, ...]) -> TreeSitterOutput:
+    task_data["task_progress"] += 1
+    check_and_update(task_data["task_id_saved"], task_data["task_progress"])
     with open(file_path[0], "r", encoding="gbk", errors="ignore") as f:
         return scan_code(f.read())
 

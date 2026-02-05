@@ -1,14 +1,10 @@
-import os
+from algo_framework.utils.data_structures import *
+from algo_framework.utils.file_utils import FileScanner
+from algo_framework.utils.engine import FilePreScreener
+
 import shutil
 import tempfile
 from pathlib import Path
-import sys
-
-sys.path.append("LLM/")
-sys.path.append("")
-from utils.data_structures import *
-from utils.file_utils import FileScanner
-from utils.engine import FilePreScreener
 
 
 class PreScreener:

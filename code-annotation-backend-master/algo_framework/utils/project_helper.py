@@ -1,4 +1,4 @@
-from utils.data_structures import *
+from algo_framework.utils.data_structures import *
 
 
 def _make_map_args(file_path: str, args: tuple):
@@ -62,9 +62,13 @@ def modify_file_path(
     fileResultDict: FileResultDict,
     file_paths_before: list[str],
     file_paths_after: list[str],
+    project_root: str = "",
 ) -> FileResultDict[list[str]]:
     fileResultDict_new = {}
     for file_path_before in fileResultDict.data.keys():
-        idx = file_paths_before.index(file_path_before)
-        fileResultDict_new[file_paths_after[idx]] = fileResultDict[file_path_before]
+        # idx = file_paths_before.index(file_path_before)
+        # fileResultDict_new[file_paths_after[idx]] = fileResultDict[file_path_before]
+        fileResultDict_new[file_path_before[len(project_root) + 1 :]] = fileResultDict[
+            file_path_before
+        ]
     return FileResultDict(data=fileResultDict_new)
