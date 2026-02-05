@@ -1,12 +1,17 @@
+from module.agent import rewrite_Agent
+
 import utils.static_classify_tool as sct
 from utils.llm_prompts import system_prompts_for_codeRewriter
 from utils.data_structures import *
 import utils.project_helper as ph
+from utils.rela_path import resource_path
+
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import KMeans
 import numpy as np
 import re
-from module.agent import rewrite_Agent
+
+
 class CodeRewriter:
     def __init__(self):
         self.history_data = []
@@ -26,6 +31,7 @@ class CodeRewriter:
         def _cal_score(args):
             error_vector_dict, content, history_data = args
             return
+
         scores = ph.de_file_and_merge(
             ph.map(
                 file_paths,
@@ -37,7 +43,10 @@ class CodeRewriter:
         )
         if len(self.history_data) > 10:
             return False
-        if len(self.history_data) > 2 and self.history_data[-2] - self.history_data[-1] < 3:
+        if (
+            len(self.history_data) > 2
+            and self.history_data[-2] - self.history_data[-1] < 3
+        ):
             return False
         if self.history_data[-1] < 10:
             return False
@@ -56,21 +65,27 @@ class CodeRewriter:
             for cluster_center in kmeans.cluster_centers_:
                 distances = np.linalg.norm(embeddings - cluster_center, axis=1)
                 closest_idx = np.argmin(distances)  # 找到距离最小的样本
-                representative_error_snippet.append(list(error_vector_dict.keys())[closest_idx])
-                
+                representative_error_snippet.append(
+                    list(error_vector_dict.keys())[closest_idx]
+                )
+
         else:
             representative_error_snippet = list(error_vector_dict.keys())
         return representative_error_snippet
 
-    def getLLMadvice(self, errors: list[ErrorSnippet])-> list[ModifyPattern]:
+    def getLLMadvice(self, errors: list[ErrorSnippet]) -> list[ModifyPattern]:
         # TODO:将errors包装成user_prompt，然后交给大模型得到建议（如果一次请求时间太长就重新请求）？
         # 检查建议内容格式正确后返回防止幻觉，否则再重复调几次，如果一直失败就给个默认建议？
         # 默认建议可以是不修改
         def _checkLLMadvice(response_content: str):
             # TODO：检查大模型有没有出现幻觉
             return True or False
+
         code_snippets = "\n".join(
-            ["代码片段" + str(i) + "：\n" + cs.code_content for i, cs in enumerate(errors)]
+            [
+                "代码片段" + str(i) + "：\n" + cs.code_content
+                for i, cs in enumerate(errors)
+            ]
         )
         human_prompt = f"""
                 请分析以下若干C++代码片段，按要求给出最小修改操作：
@@ -83,17 +98,35 @@ class CodeRewriter:
         replace_pattern = r"将第 (\d+) 行的 (\w+) 替换为 (\w+)\。"
         add_semicolon_pattern = r"在第 (\d+) 行的 (\w+)\(\.\.\.\) 调用末尾添加分号\。"
         matches = re.findall(delete_pattern, response)
-        modify_patterns = [ModifyPattern(before_pattern=f"{match[1]}", after_pattern="<null>") for match in matches]
+        modify_patterns = [
+            ModifyPattern(before_pattern=f"{match[1]}", after_pattern="<null>")
+            for match in matches
+        ]
         matches = re.findall(replace_pattern, response)
-        modify_patterns.extend([ModifyPattern(before_pattern=f"{match[1]}", after_pattern=f"{match[2]}") for match in matches])
+        modify_patterns.extend(
+            [
+                ModifyPattern(before_pattern=f"{match[1]}", after_pattern=f"{match[2]}")
+                for match in matches
+            ]
+        )
         matches = re.findall(add_semicolon_pattern, response)
-        modify_patterns.extend([ModifyPattern(before_pattern=f"{match[2]}(...)", after_pattern=f"{match[2]}(...);") for match in matches])
-        return modify_patterns  
+        modify_patterns.extend(
+            [
+                ModifyPattern(
+                    before_pattern=f"{match[2]}(...)", after_pattern=f"{match[2]}(...);"
+                )
+                for match in matches
+            ]
+        )
+        return modify_patterns
 
     @staticmethod
     def getFallbackAdvice(errors: list[ErrorSnippet]):
         # TODO:fallback的处理就是直接删除errors的代码片段？即我们放弃对这些片段的架构分类标注
-        return [ModifyPattern(before_pattern=error.code_content, after_pattern='<null>') for error in errors]
+        return [
+            ModifyPattern(before_pattern=error.code_content, after_pattern="<null>")
+            for error in errors
+        ]
 
     @staticmethod
     def rewriteContent(
@@ -105,7 +138,7 @@ class CodeRewriter:
         # TODO:对于每个错误看看是否可以匹配建议，如果匹配的话，先生成一条tagTarget_relation，然后修改content的内容
         # WARNING: 修改content的时候**不能改变error原本的行数**，例如不能5行变4行，
         # 因为之后还要对这个content用ts分析，如果行号变了，那么就是不同的tag_target了
-        content,errors,advice = args        
+        content, errors, advice = args
         tagTarget_relations = []
         content_lines = content.splitlines()
         # 遍历所有修改建议
@@ -113,23 +146,29 @@ class CodeRewriter:
             before_pattern = re.escape(suggestion.before_pattern)  # 将特殊字符转义
             after_pattern = re.escape(suggestion.after_pattern)  # 将特殊字符转义
             # 跨行匹配
-            multi_line_pattern = re.compile(before_pattern, re.DOTALL)  # DOTALL 允许'.'匹配换行符
+            multi_line_pattern = re.compile(
+                before_pattern, re.DOTALL
+            )  # DOTALL 允许'.'匹配换行符
             # 查找所有匹配的跨行代码块
             for error in errors:
                 error_content = error.code_content
                 start_line = error.start_line - 1  # 由于行号从1开始，列表索引从0开始
                 end_line = error.end_line
                 matches = multi_line_pattern.finditer(error_content)
-            
+
                 if after_pattern == "<null>":
-                    for match in matches:                    
+                    for match in matches:
                         # 在跨行代码块的地方，用空白行替换掉，确保行数不变
-                        matched_text = error_content[match.start():match.end()]
+                        matched_text = error_content[match.start() : match.end()]
                         matched_lines = matched_text.splitlines()
                         # 生成等长的空白行，确保删除的行数与原始行数一致
-                        replacement_lines = [' ' * len(line) for line in matched_lines]
+                        replacement_lines = [" " * len(line) for line in matched_lines]
                         replacement_text = "\n".join(replacement_lines)
-                        error_content = error_content[:match.start()] + replacement_text + error_content[match.end():]
+                        error_content = (
+                            error_content[: match.start()]
+                            + replacement_text
+                            + error_content[match.end() :]
+                        )
                         # 替换掉代码块，保持原来的行数
                         content_lines[start_line:end_line] = error_content.splitlines()
                         # 记录标签关系
@@ -137,21 +176,32 @@ class CodeRewriter:
                 # 对content进行正则匹配和替换
                 else:
                     for match in matches:
-                        matched_text = error_content[match.start():match.end()]
+                        matched_text = error_content[match.start() : match.end()]
                         # 在调用末尾添加分号
-                        replacement_text = re.sub(before_pattern, after_pattern, matched_text)
-                        error_content = error_content[:match.start()] + replacement_text + error_content[match.end():]
+                        replacement_text = re.sub(
+                            before_pattern, after_pattern, matched_text
+                        )
+                        error_content = (
+                            error_content[: match.start()]
+                            + replacement_text
+                            + error_content[match.end() :]
+                        )
                         # 替换掉代码块，保持原来的行数
                         content_lines[start_line:end_line] = error_content.splitlines()
                         # 记录标签关系
                         # tagTarget_relations.append(DepRelation(match, suggestion))
         return "\n".join(content_lines), tagTarget_relations
-    
+
     @staticmethod
     def vectorize(errors: list[ErrorSnippet]) -> dict[ErrorSnippet, VectorType]:
         # TODO:计算errors的向量，返回<error,vector>的字典，VectorType的类型定义在utils/data_structures修改
-        embedding_model = SentenceTransformer("./LLM/models/all-MiniLM-L6-v2", device='cpu')
-        embeddings = {error_snippet:embedding_model.encode(error_snippet.code_content) for error_snippet in errors[0]}
+        embedding_model = SentenceTransformer(
+            resource_path("../models/all-MiniLM-L6-v2"), device="cpu"
+        )
+        embeddings = {
+            error_snippet: embedding_model.encode(error_snippet.code_content)
+            for error_snippet in errors[0]
+        }
         return embeddings
 
     @staticmethod
@@ -190,7 +240,7 @@ class CodeRewriter:
                     ph.de_file_and_merge(file_error_vector_dicts)
                 )
                 advice = code_rewritter.getLLMadvice(selected_errors)
-                
+
             else:
                 advice = CodeRewriter.getFallbackAdvice(errors)
             total_advice.extend(advice)
@@ -201,9 +251,11 @@ class CodeRewriter:
                 file_errors,
                 advice,
             )
+
             def _merge_tagTarget_relations(args):
                 total, new = args
                 return total + new
+
             file_tagTarget_relations_total = ph.map(
                 file_paths,
                 _merge_tagTarget_relations,
@@ -212,9 +264,12 @@ class CodeRewriter:
             )
             _, file_errors = ph.map_out_tuple(file_paths, sct.scan_code, file_content)
             errors = ph.de_file_and_merge(file_errors)
-            def filter_errors_by_vector(args,error_vector_dict: dict[ErrorSnippet, VectorType] = None, 
-                                        errors: list[ErrorSnippet]= None,
-                ) -> dict[ErrorSnippet, VectorType]:
+
+            def filter_errors_by_vector(
+                args,
+                error_vector_dict: dict[ErrorSnippet, VectorType] = None,
+                errors: list[ErrorSnippet] = None,
+            ) -> dict[ErrorSnippet, VectorType]:
                 error_vector_dict, errors = args
                 return {
                     error: vector
@@ -231,4 +286,4 @@ class CodeRewriter:
 
         ph.map(file_paths, _write_file, file_content, use_path=True)
 
-        return file_tagTarget_relations_total,total_advice
+        return file_tagTarget_relations_total, total_advice

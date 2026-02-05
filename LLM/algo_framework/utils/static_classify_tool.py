@@ -1,10 +1,6 @@
-from enum import Enum
-from typing import Dict, List, Optional, Tuple, Set, NamedTuple
-from tree_sitter import Node as TSNode
-import sys
-sys.path.append('LLM/')
-
-from algo_framework.utils.ts_helper import (
+from utils.code_processor import remove_regex
+from utils.data_structures import *
+from utils.ts_helper import (
     TSTypes,
     SExpressionTemplate,
     ts_parse,
@@ -12,10 +8,11 @@ from algo_framework.utils.ts_helper import (
     findTSNodesWithSExpr,
     findAncestorUntil,
 )
-from algo_framework.utils.code_processor import remove_regex
 
+from enum import Enum
+from typing import Dict, List, Optional, Tuple, Set
+from tree_sitter import Node as TSNode
 
-from algo_framework.utils.data_structures import *
 
 class NodeType(Enum):
     TAGTARGET = "tagtarget"
@@ -104,7 +101,10 @@ def _pack_errors(error_tsNodes: List[TSNode], code_len: int) -> TreeSitterOutput
         if content_tsNode is None:
             continue
             raise NotImplementedError(f"遇到了没有考虑到的情况：{str(errror_tsNode)}")
-        if content_tsNode.start_point.row ==0 and content_tsNode.end_point.row == code_len -1:
+        if (
+            content_tsNode.start_point.row == 0
+            and content_tsNode.end_point.row == code_len - 1
+        ):
             # 整个文件都是错误的，就不记录了
             continue
         error_snippets.append(
@@ -125,17 +125,20 @@ def _prepare(
     """构建codeNode_graph，它记录了符号名/标记目标的id与codeNode的对应关系"""
     codeNode_graph: Dict[str | int, LinkableCodeNode] = {}
 
-    def _checkSyntaxType(tsNode: TSNode, default: SyntaxType=SyntaxType.MACRO) -> SyntaxType:
-            # 将tsNode的节点类型映射到语法类型
-            if tsNode.parent.type == TSTypes.CALL_EXPRESSION:
-                return SyntaxType.FUNCTION
-            if tsNode.type == TSTypes.STRING_CONTENT:
-                return SyntaxType.ASM
-            if tsNode.type == TSTypes.PRIMITIVE_TYPE:
-                return SyntaxType.TYPE
-            if tsNode.parent.type == TSTypes.ATTRIBUTE:
-                return SyntaxType.ATTRIBUTE
-            return default
+    def _checkSyntaxType(
+        tsNode: TSNode, default: SyntaxType = SyntaxType.MACRO
+    ) -> SyntaxType:
+        # 将tsNode的节点类型映射到语法类型
+        if tsNode.parent.type == TSTypes.CALL_EXPRESSION:
+            return SyntaxType.FUNCTION
+        if tsNode.type == TSTypes.STRING_CONTENT:
+            return SyntaxType.ASM
+        if tsNode.type == TSTypes.PRIMITIVE_TYPE:
+            return SyntaxType.TYPE
+        if tsNode.parent.type == TSTypes.ATTRIBUTE:
+            return SyntaxType.ATTRIBUTE
+        return default
+
     def _find_user_define_symbols():
         # 寻找代码的内部符号
         for user_define_sexpr_tuple in SExpressionTemplate.USER_DEFINE_SYMBOL.values():
@@ -154,10 +157,12 @@ def _prepare(
                     # 将符号添加到符号表中
                     if symbolName not in codeNode_graph:
                         codeNode = LinkableCodeNode(
-                            text = userDefineSymbol_tsNode.text.decode(),
+                            text=userDefineSymbol_tsNode.text.decode(),
                             nodeType=NodeType.USERDEFINED,
                             define_sentence_tsNodes=[sentence_tsNode],
-                            syntaxType=_checkSyntaxType(userDefineSymbol_tsNode, SyntaxType.UNKNOWN)
+                            syntaxType=_checkSyntaxType(
+                                userDefineSymbol_tsNode, SyntaxType.UNKNOWN
+                            ),
                         )
                         codeNode_graph[symbolName] = codeNode
                     else:
@@ -182,7 +187,7 @@ def _prepare(
         outerSymbol_tsNodes = findFilteredIdentInTSNode(root_tsNode)
         outerSymbol_tsNodes += findTSNodesWithSExpr(
             root_tsNode, SExpressionTemplate.TOTAL_SYMBOL
-        )        
+        )
         for symbol_tsNode in outerSymbol_tsNodes:
             # 将外部符号添加到符号表中
             # 因为已经先添加了内部符号，所以这里不会重复添加错误NodeType的符号
@@ -267,6 +272,7 @@ def _linkToOutsideSymbols(
             extractedSymbolName = set()
             if root.text == "EIGEN_PACKET_MATH_NEON_H".encode():
                 pass
+
             def _walk(root: TSNode, positive: bool) -> None:
                 if root.type == TSTypes.UNARY_EXPRESSION:
                     operatorNode = root.child_by_field_name("operator")
@@ -313,10 +319,7 @@ def _linkToOutsideSymbols(
                     active = False
             if active:
                 active = root_tsNode.type not in TSTypes.GROUP_PREPROC_COND_NEG
-            activeSymbolNames = _extractActiveSymbols(
-                cursor.node,
-                active
-            )
+            activeSymbolNames = _extractActiveSymbols(cursor.node, active)
             # 传播给每一个句子
             while cursor.goto_next_sibling():
                 if cursor.node.type in TSTypes.GROUP_PREPROC_COND_EL:
@@ -430,14 +433,22 @@ def _make_collected_exprs_link(
             for line in lines:
                 tagTarget_codeNode = _find_tagTarget_include_line(line)
                 if tagTarget_codeNode:
-                    print(f"链接预处理符号 {expr_name} 到标记目标 {tagTarget_codeNode.text}")
+                    print(
+                        f"链接预处理符号 {expr_name} 到标记目标 {tagTarget_codeNode.text}"
+                    )
                     # tagTarget_codeNode.linkTo(
                     #     [CodeNode(name=expr_name, syntax=syntax_type)]
                     # )
                     tagTarget_codeNode.linkTo(
-                        [LinkableCodeNode(text=expr_name, nodeType=NodeType.OUTERSYMBOL, syntaxType=syntax_type)]
+                        [
+                            LinkableCodeNode(
+                                text=expr_name,
+                                nodeType=NodeType.OUTERSYMBOL,
+                                syntaxType=syntax_type,
+                            )
+                        ]
                     )
-                    
+
 
 def _pack_analysis_result(codeNode_graph: dict[str | int, LinkableCodeNode]):
     """把符号表和预处理提取的符号关系整理成关系的输出格式"""
@@ -494,7 +505,7 @@ def scan_code(code: str) -> TreeSitterOutput:
     root_tsNode, error_tsNodes = ts_parse(code)
     print(f"解析完成, 耗时：{time.time()-start}s")
     if len(error_tsNodes) > 0:
-        res =_pack_errors(error_tsNodes,code_len=len(code.splitlines()))
+        res = _pack_errors(error_tsNodes, code_len=len(code.splitlines()))
         if res.error_snippets != []:
             return res
     codeNode_graph = _prepare(root_tsNode)
@@ -517,7 +528,6 @@ def scan_file(file_path: tuple[str, ...]) -> TreeSitterOutput:
         return scan_code(f.read())
 
 
-    
 if __name__ == "__main__":
     file_path = "LLM/config/eigen/Eigen/src/Core/arch/NEON/PacketMath.h"
     output = scan_file((file_path,))

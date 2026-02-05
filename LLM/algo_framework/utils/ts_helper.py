@@ -1,4 +1,4 @@
-from tree_sitter import Language, Parser, Node as TSNode, Query, QueryCursor, TreeCursor
+from tree_sitter import Language, Parser, Node as TSNode, Query, QueryCursor
 import tree_sitter_cpp
 from typing import List, Tuple
 from collections import namedtuple
