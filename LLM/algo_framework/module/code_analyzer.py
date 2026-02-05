@@ -31,10 +31,6 @@ class CodeAnalyzer:
 
         _prepare()
 
-        top_nodes = [node for node, in_degree in G.in_degree() if in_degree == 0]
-        for top_node in top_nodes:
-            tag_symbol(nodes[top_node])
-
         def remove_cycles(G):
             """原地修改图 G，移除边直到无环（简单粗暴版）"""
             while True:
@@ -53,11 +49,13 @@ class CodeAnalyzer:
         def _broadcast():
             for name in nx.topological_sort(G):
                 node = nodes[name]
+                tag_symbol(node)
                 for pred_name in G.predecessors(name):
                     pred_node = nodes[pred_name]
                     node.archs |= pred_node.archs
 
         _broadcast()
+        pass
 
     @staticmethod
     def analyze(

@@ -13,7 +13,7 @@ def main(
 ):
     # orig_file_paths, file_paths = PreScreener.prescreen(project_root)
     orig_file_paths = ["testcase.h"]
-    file_paths = ["MathFunctions.h"]
+    file_paths = ["PacketMath.h"]
     file_tagTarget_relations, advice = CodeRewriter.rewrite(
         file_paths,
         *ph.map_out_tuple(file_paths, sct.scan_file, use_path=True),

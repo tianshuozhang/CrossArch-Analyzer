@@ -454,7 +454,15 @@ def _pack_analysis_result(codeNode_graph: dict[str | int, LinkableCodeNode]):
     """把符号表和预处理提取的符号关系整理成关系的输出格式"""
     tagTarget_relations = []
     symbol_relations = []
+    packed_symbol_nodes = {}
     for name_or_id, codeNode in codeNode_graph.items():
+        for linkedCodeNode in codeNode.linkedCodeNodes:
+            if linkedCodeNode.text not in packed_symbol_nodes:
+                packed_symbol_nodes[linkedCodeNode.text] = CodeNode(
+                    name=linkedCodeNode.text,
+                    syntax=codeNode.syntax.value,
+                )
+
         # 整理标记目标的关系
         if codeNode.nodeType == NodeType.TAGTARGET:
             dep_relation = DepRelation(
@@ -463,10 +471,7 @@ def _pack_analysis_result(codeNode_graph: dict[str | int, LinkableCodeNode]):
                     info=codeNode.info,
                 ),
                 dependencies=[
-                    CodeNode(
-                        name=linkedCodeNode.text,
-                        syntax=codeNode.syntax.value,
-                    )
+                    packed_symbol_nodes[linkedCodeNode.text]
                     for linkedCodeNode in codeNode.linkedCodeNodes
                 ],
             )
@@ -476,10 +481,7 @@ def _pack_analysis_result(codeNode_graph: dict[str | int, LinkableCodeNode]):
             dep_relation = DepRelation(
                 node=CodeNode(name=name_or_id, syntax=codeNode.syntax.value),
                 dependencies=[
-                    CodeNode(
-                        name=linkedCodeNode.text,
-                        syntax=codeNode.syntax.value,
-                    )
+                    packed_symbol_nodes[linkedCodeNode.text]
                     for linkedCodeNode in codeNode.linkedCodeNodes
                 ],
             )
