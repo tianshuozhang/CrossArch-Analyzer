@@ -19,6 +19,10 @@
         <a-input v-model:value="formState.user.telphone" />
       </a-form-item>
 
+      <a-form-item :name="['user', 'username']" label="用户名" :rules="[{ required: true }]">
+        <a-input v-model:value="formState.user.username" />
+      </a-form-item>
+
       <a-form-item :name="['user', 'password']" label="密码" :rules="[{ required: true }]">
         <a-input-password v-model:value="formState.user.password" />
       </a-form-item>
@@ -72,6 +76,7 @@ export default defineComponent({
     const formState = reactive({
       user: {
         name: "",
+        username: "",
         telphone: "",
         password: "",
         password_again: "",
@@ -82,7 +87,7 @@ export default defineComponent({
     };
     function handleRegister() {
       let params = new URLSearchParams();
-      params.append("username", formState.user.name);
+      params.append("username", formState.user.username);
       params.append("telphone", formState.user.telphone);
       params.append("password", formState.user.password);
       params.append("password_again", formState.user.password_again);

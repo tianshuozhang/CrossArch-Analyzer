@@ -14,26 +14,27 @@
     >
       <h1 style="text-align: center">登录</h1>
       <a-form-item
-        label="手机号"
-        name="telphone"
+        label="用户名"
+        name="username"
         fieldDecoratorId
-        :rules="[{ required: true, message: '请输入手机号！' }]"
+        :rules="[{ required: true, message: '请输入用户名！' }]"
       >
-        <a-input v-model:value="formState.telphone" />
+        <a-input v-model:value="formState.username" />
       </a-form-item>
 
       <a-form-item label="密码" name="password" :rules="[{ required: true, message: '请输入密码！' }]">
         <a-input-password v-model:value="formState.password" />
       </a-form-item>
 
-      <a-form-item name="login" :wrapper-col="{ offset: 8, span: 16 }">
-        <a-button type="primary" html-type="submit" class="login-form-button" @click="handleLogin()"> 登录 </a-button>
-        <a-button style="margin-left:8px" @click="enterAsGuest()">游客进入</a-button>
-        Or
-        <router-link to="../register">立即注册</router-link>
-        <br />
-        <router-link to="../modifypw">修改密码</router-link>
+      <a-form-item name="login" :wrapper-col="{ span: 24 }" style="text-align: center;">
+        <a-button type="primary" html-type="submit" class="login-form-button" @click="handleLogin()" size="large" style="min-width: 120px; margin-right: 10px;"> 登录 </a-button>
+        <a-button @click="enterAsGuest()" size="large" ghost style="min-width: 120px;">游客进入</a-button>
       </a-form-item>
+      <div class="login-links">
+        <router-link to="../register">立即注册</router-link>
+        |
+        <router-link to="../modifypw">修改密码</router-link>
+      </div>
     </a-form>
   </div>
 </template>
@@ -49,20 +50,21 @@
     components: { HeaderNav },
     setup() {
       const router = useRouter();
-      const formState = reactive({ telphone: "", password: "" });
+      const formState = reactive({ username: "", password: "" });
       const onFinish = (values) => { };
       const onFinishFailed = (errorInfo) => { };
       function handleLogin() {
         let params = new URLSearchParams();
-        params.append("telphone", formState.telphone);
+        params.append("username", formState.username);
         params.append("password", formState.password);
         let url = path.website.login;
         postData(url, params).then((res) => {
           if (res.state === "success") {
-            message.success(res.state);
-            window.localStorage.setItem("userId", res.rst.username);
-            if (res.rst.username === "admin") {
-              router.push({ name: "alluser" });
+            message.success(res.description);
+            // 存储用户名而不是硬编码'demo'
+            window.localStorage.setItem("userId", formState.username);
+            if (formState.username === "admin") {
+              router.push({ name: "admin-projects" });
             } else {
               router.push({ name: "code" });
             }
@@ -80,6 +82,45 @@
   });
 </script>
 <style scoped>
-  .container { display: flex; justify-content: center; align-items: center; min-height: 650px; background-size: cover; background: #eeeded; }
-  .login-form { border-radius: 6px; background: #ffffff; width: 350px; padding: 25px 25px 5px 25px; }
+  .container { 
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    min-height: 80vh; 
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    padding: 20px;
+  }
+  .login-form { 
+    border-radius: 12px; 
+    background: #ffffff; 
+    width: 400px; 
+    padding: 30px 30px 20px 30px; 
+    box-shadow: 0 8px 32px rgba(31, 38, 135, 0.2);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  .login-form h1 {
+    color: #2c3e50;
+    margin-bottom: 25px;
+    text-align: center;
+    font-weight: 600;
+  }
+  .login-form-button {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  .ant-form-item {
+    margin-bottom: 16px;
+  }
+  .login-links {
+    text-align: center;
+    margin-top: 15px;
+  }
+  .login-links a {
+    color: #3498db;
+    margin: 0 8px;
+  }
+  .login-links a:hover {
+    color: #2980b9;
+  }
 </style>

@@ -12,8 +12,51 @@
 - 后端地址配置：
   - 默认 `apiBase = http://127.0.0.1:5000`
   - 可在浏览器控制台设置：`localStorage.setItem('apiBase', 'http://<host>:<port>')`
-
+管理员：注册为
 ## 核心交互与后端
+
+### 后端返回格式规范
+
+前端定义了后端应返回的数据格式，特别是分析结果的annotations部分：
+
+- `annotations`数组元素格式：
+  - `line`: 行号（数字，从1开始）
+  - `tags`: 标签数组（字符串数组，如["arm", "riscv"]）
+  - `type`: 代码类型（字符串，如"function", "macro", "assembly"等）
+  - `fn`: 函数名（字符串，可选）
+  - `tagColor`: 标签背景颜色（十六进制颜色值，如"#dafbe1"，可选）
+  - `customTag`: 自定义标签文本（字符串，可选）
+
+- `codeContent`格式（可选）：
+  - 完整代码内容，可以是字符串（按行分割）或对象数组（包含text、tags等字段）
+  - 当后端需要更新前端显示的完整代码内容时使用此字段
+
+前端会根据这些字段相应地更新代码显示、标签和颜色。
+
+### 统计图表接口规范
+
+前端为统计图表预留了接口，后端可以返回不同类型的统计图表数据：
+
+- `POST /Analysis/statistics` 接口返回指定类型的统计图表数据：
+  - `statType`参数：统计类型（"architecture"、"function"、"file"、"custom"）
+  - 返回格式：
+    ```json
+    {
+      "state": "success",
+      "description": "获取统计图表数据成功",
+      "rst": {
+        "barData": [
+          { "key": "标识", "label": "标签文本", "count": 数量, "percent": 百分比, "color": "颜色" }
+        ]
+      }
+    }
+    ```
+
+- 图1：架构分布统计 - 显示ARM、RISC-V、通用代码的分布
+- 图2：函数级别统计 - 显示按函数级别的架构分布
+- 图3：文件级别统计 - 显示整个文件中各架构代码行数的分布
+
+
 
 - 上传文件
   - 前端行为：读取本地文件，解析并在左侧文件树与代码预览展示
@@ -27,12 +70,22 @@
       "description": "分析完成",
       "rst": {
         "reply": "已根据需求完成分类",
-        "annotations": [ { "line": 12, "tags": ["riscv"], "type": "function", "fn": "calc_riscv" } ],
+        "annotations": [ { "line": 12, "tags": ["riscv"], "type": "function", "fn": "calc_riscv", "tagColor": "#dafbe1", "customTag": "" } ],
         "report": "...文本报告...",
         "stats": { "funcCount": 3, "riscvFuncCount": 1, "fileArch": "riscv", "counts": { "arm": 0, "riscv": 10, "common": 5 } }
       }
     }
     ```
+  - annotations格式说明：
+    - `line`: 行号（数字，从1开始）
+    - `tags`: 标签数组（字符串数组，如["arm", "riscv"]）
+    - `type`: 代码类型（字符串，如"function", "macro", "assembly"等）
+    - `fn`: 函数名（字符串，可选）
+    - `tagColor`: 标签背景颜色（十六进制颜色值，如"#dafbe1"，可选）
+    - `customTag`: 自定义标签文本（字符串，可选）
+  - codeContent格式说明（可选）：
+    - `codeContent`: 完整代码内容，可以是字符串（按行分割）或对象数组（包含text、tags等字段）
+    - 当后端需要更新前端显示的完整代码内容时使用此字段
 
 - 下载报告
   - 前端行为：优先请求后端生成报告，成功直接下载；失败走前端兜底生成文本
@@ -134,14 +187,91 @@
 
 ## 用户
 - `POST /User/register`
-- `POST /User/login` 参数：`telphone`, `password`
+  - 参数：`username`, `password`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "注册成功", "rst": { "username": "newuser" } }
+    ```
+  - 失败示例：
+    ```json
+    { "state": "fail", "description": "用户名已存在", "rst": null }
+    ```
+- `POST /User/login`
+  - 参数：`username`, `password`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "登录成功", "rst": { "username": "demo" } }
+    ```
+  - 失败示例：
+    ```json
+    { "state": "fail", "description": "账号或密码错误", "rst": null }
+    ```
 - `GET /User/exit`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "退出成功", "rst": null }
+    ```
 - `POST /User/modifyPassword`
+  - 参数：`username`, `oldPassword`, `newPassword`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "密码修改成功", "rst": { "username": "demo" } }
+    ```
+  - 失败示例：
+    ```json
+    { "state": "fail", "description": "原密码错误", "rst": null }
+    ```
 - `POST /User/removeUser`
+  - 参数：`username`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "用户删除成功", "rst": { "username": "demo" } }
+    ```
+  - 失败示例：
+    ```json
+    { "state": "fail", "description": "用户不存在", "rst": null }
+    ```
 
 ## 管理
 - `GET /Admin/getUsers`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "获取用户列表成功", "rst": [{ "username": "user1", "telphone": "13800138000", "numFile": 5, "numTag": 10, "numRelation": 3 }] }
+    ```
+  - 失败示例：
+    ```json
+    { "state": "fail", "description": "获取用户列表失败", "rst": null }
+    ```
 - `POST /Admin/removeUser`
+  - 参数：`userId`, `adminpassword`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "用户删除成功", "rst": null }
+    ```
+  - 失败示例：
+    ```json
+    { "state": "fail", "description": "密码错误", "rst": null }
+    ```
+- `POST /Admin/removeUserProjects`
+  - 参数：`userId`, `adminpassword`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "用户项目删除成功", "rst": null }
+    ```
+  - 失败示例：
+    ```json
+    { "state": "fail", "description": "密码错误或用户不存在", "rst": null }
+    ```
+- `POST /Admin/removeProject`
+  - 参数：`projectId`, `adminpassword`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "项目删除成功", "rst": null }
+    ```
+  - 失败示例：
+    ```json
+    { "state": "fail", "description": "密码错误或项目不存在", "rst": null }
+    ```
 
 ## 代码
 - `GET|POST /Code/getCodes` 参数：`userId`
@@ -151,6 +281,23 @@
 - `POST /Code/modifyCodeID`
 - `POST /Code/modifyCode`
 - `POST /Code/report` 参数：`userId`, `codeId`（开发态从 `http://127.0.0.1:5000/Code/report` 调用）
+- `POST /Analysis/analyze` 参数：`userId`, `codeId`, `code`, `language`, `prompt`（用于重新分析修改后的代码）
+- `POST /Analysis/statistics` 参数：`userId`, `codeId`, `statType`（用于获取指定类型的统计图表数据）
+
+## 项目管理
+- `GET|POST /Project/list` 参数：`userId` - 获取用户项目列表
+- `POST /Project/create` 参数：`userId`, `projectName` - 创建新项目
+- `POST /Project/open` 参数：`userId`, `projectId` - 打开指定项目
+- `POST /Project/delete` 参数：`userId`, `projectId` - 删除指定项目
+- `POST /Project/rename` 参数：`userId`, `projectId`, `newName` - 重命名项目
+- `POST /Project/upload` 参数：`userId`, `projectFile` - 上传项目文件
+- `GET|POST /Project/tree` 参数：`userId`, `projectId` - 获取项目目录树
+- `POST /Project/update` 参数：`userId`, `projectId`, `data` - 更新项目信息
+
+## 状态管理
+- `GET|POST /Status/get` 参数：`userId` - 获取当前系统状态
+- `GET|POST /Status/upload` 参数：`userId` - 获取文件上传进度
+- `GET|POST /Status/analysis` 参数：`userId` - 获取代码分析进度
 
 ## 标签与标注
 - `GET|POST /Mark/getLabelMark`
@@ -164,6 +311,78 @@
 - `POST /UserLabel/removeLabel`
 - `POST /UserLabel/modifyLabelID`
 - `POST /UserLabel/modifyLabelintro`
+
+## 项目管理接口示例响应
+
+- `GET|POST /Project/list`
+  - 请求体：`userId`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "获取项目列表成功", "rst": [{ "id": 1, "name": "MyProject", "path": "/projects/myproject", "createTime": "2023-01-01 12:00:00" }] }
+    ```
+
+- `POST /Project/create`
+  - 请求体：`userId`, `projectName`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "项目创建成功", "rst": { "projectId": 1, "projectName": "MyProject" } }
+    ```
+
+- `POST /Project/open`
+  - 请求体：`userId`, `projectId`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "项目打开成功", "rst": { "projectId": 1, "projectName": "MyProject", "fileTree": [...] } }
+    ```
+
+- `POST /Project/delete`
+  - 请求体：`userId`, `projectId`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "项目删除成功", "rst": { "projectId": 1 } }
+    ```
+
+- `POST /Project/rename`
+  - 请求体：`userId`, `projectId`, `newName`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "项目重命名成功", "rst": { "projectId": 1, "newName": "NewProjectName" } }
+    ```
+
+- `POST /Project/upload`
+  - 请求体：`userId`, `projectFile` (FormData)
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "项目上传成功", "rst": { "projectId": 1, "fileName": "myproject.zip", "size": 1024000 } }
+    ```
+
+- `GET|POST /Project/tree`
+  - 请求体：`userId`, `projectId`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "获取项目目录树成功", "rst": { "name": "MyProject", "type": "dir", "children": [...] } }
+    ```
+
+- `GET|POST /Status/get`
+  - 请求体：`userId`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "获取状态成功", "rst": { "isUploading": false, "isAnalyzing": true, "uploadProgress": 0, "analysisProgress": 65 } }
+    ```
+
+- `GET|POST /Status/upload`
+  - 请求体：`userId`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "获取上传进度成功", "rst": { "isUploading": true, "progress": 45 } }
+    ```
+
+- `GET|POST /Status/analysis`
+  - 请求体：`userId`
+  - 成功示例：
+    ```json
+    { "state": "success", "description": "获取分析进度成功", "rst": { "isAnalyzing": true, "progress": 78 } }
+    ```
 
 ## 前端调用方式
 - `GET`：`src/api/webget.js:getData(url, params)`
