@@ -45,9 +45,11 @@ def login():
     data = request.form
     username = data.get("username")
     password = data.get("password")
-
+    print(f"Login attempt: {username}")
+    print(f"Password received: {password}")
     # 验证用户
     user = user_db.get_user_by_username(username)
+    
     if not user or not check_password_hash(user["password_hash"], password):
         return (
             jsonify(
@@ -92,7 +94,7 @@ def register():
         data = request.form
         username = data.get("username")
         password = data.get("password")
-
+        
         # 1. 参数校验
         if not username or not password:
             return (
