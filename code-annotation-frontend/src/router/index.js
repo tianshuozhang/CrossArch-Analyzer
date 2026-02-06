@@ -13,7 +13,7 @@ router.beforeEach((to, from, next) => {
   const guest = (to && to.query && (to.query.guest === '1' || to.query.guest === 1))
   if (userId === null) {
     if (guest) { window.localStorage.setItem('userId','demo'); next() }
-    else if (to.path !== '/login') { return { name: 'login' } }
+    else if (to.path !== '/login') { next({ name: 'login' });}
     else { next() }
   } else { next() }
 })
