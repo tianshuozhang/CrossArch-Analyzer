@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
   { path: '/login', name: 'login', component: () => import('../views/Login.vue') },
+  { path: '/register', name: 'register', component: () => import('../views/Register.vue') },
   { path: '/', name: 'code', component: () => import('../views/Preview.vue') },
   { path: '/admin-projects', name: 'admin-projects', component: () => import('../views/AdminProjects.vue') }
 ]

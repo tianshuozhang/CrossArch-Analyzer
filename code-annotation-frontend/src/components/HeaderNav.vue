@@ -147,62 +147,14 @@
       
       // 处理登录
       function handleLogin() {
-        if (!loginForm.username || !loginForm.password) {
-          message.warning('请输入用户名和密码');
-          return;
-        }
-        
-        let params = new URLSearchParams();
-        params.append("username", loginForm.username);
-        params.append("password", loginForm.password);
-        let url = path.website.login;
-        
-        postData(url, params).then((res) => {
-          if (res.state === "success") {
-            message.success(res.description);
-            window.localStorage.setItem("userId", loginForm.username);
-            isVisitor.value = false;  // 正常登录的用户不是访客
-            closeLoginModal();
-            
-            if (loginForm.username === "admin") {
-              router.push({ name: "admin-projects" });
-            } else {
-              router.push({ name: "code" });
-            }
-          } else {
-            message.error(res.description);
-          }
-        });
+        router.push({ name: 'login' });
       }
       
       // 处理注册
+
       function handleRegister() {
-        if (!registerForm.username || !registerForm.password) {
-          message.warning('请输入用户名和密码');
-          return;
-        }
-        
-        if (registerForm.password !== registerForm.confirmPassword) {
-          message.error('两次输入的密码不一致');
-          return;
-        }
-        
-        let params = new URLSearchParams();
-        params.append("username", registerForm.username);
-        params.append("password", registerForm.password);
-        let url = path.website.register;
-        
-        postData(url, params).then((res) => {
-          if (res.state === "success") {
-            message.success(res.description);
-            closeRegisterModal();
-            // 自动填充登录表单并切换到登录界面
-            loginForm.username = registerForm.username;
-            loginForm.password = registerForm.password;
-          } else {
-            message.error(res.description);
-          }
-        });
+        router.push({ name: 'login' });
+
       }
       
       // 游客登录

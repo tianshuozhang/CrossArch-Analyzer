@@ -10,26 +10,56 @@
       class="login-form"
     >
       <h1 style="text-align: center">注册</h1>
+      <div class="login-form-group">
+        <label>用户名</label>
+        <input
+          v-model="formState.user.name"
+          type="text"
+          placeholder="请输入用户名"
+          class="login-input"
+        />
+      </div>
 
-      <a-form-item :name="['user', 'name']" label="用户名" :rules="[{ required: true }]">
-        <a-input v-model:value="formState.user.name" />
-      </a-form-item>
+      <div class="login-form-group">
+        <label>手机号</label>
+        <input
+          v-model="formState.user.telphone"
+          type="text"
+          placeholder="请输入手机号"
+          class="login-input"
+        />
+      </div>
 
-      <a-form-item :name="['user', 'telphone']" label="手机号" :rules="[{ required: true }]">
-        <a-input v-model:value="formState.user.telphone" />
-      </a-form-item>
+      <div class="login-form-group">
+        <label>账号</label>
+        <input
+          v-model="formState.user.username"
+          type="text"
+          placeholder="请输入账号"
+          class="login-input"
+        />
+      </div>
 
-      <a-form-item :name="['user', 'username']" label="用户名" :rules="[{ required: true }]">
-        <a-input v-model:value="formState.user.username" />
-      </a-form-item>
+      <div class="login-form-group">
+        <label>密码</label>
+        <input
+          v-model="formState.user.password"
+          type="password"
+          placeholder="请输入密码"
+          class="login-input"
+        />
+      </div>
 
-      <a-form-item :name="['user', 'password']" label="密码" :rules="[{ required: true }]">
-        <a-input-password v-model:value="formState.user.password" />
-      </a-form-item>
+      <div class="login-form-group">
+        <label>再次输入密码</label>
+        <input
+          v-model="formState.user.password_again"
+          type="password"
+          placeholder="请再次输入密码"
+          class="login-input"
+        />
+      </div>
 
-      <a-form-item :name="['user', 'password_again']" label="再次输入密码" :rules="[{ required: true }]">
-        <a-input-password v-model:value="formState.user.password_again" />
-      </a-form-item>
 
       <a-form-item :wrapper-col="{ offset: 8, span: 16 }">
         <a-button type="primary" html-type="submit" @click="handleRegister()">注册</a-button>

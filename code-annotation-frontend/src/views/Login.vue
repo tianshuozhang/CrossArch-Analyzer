@@ -13,18 +13,16 @@
       class="login-form"
     >
       <h1 style="text-align: center">登录</h1>
-      <a-form-item
-        label="用户名"
-        name="username"
-        fieldDecoratorId
-        :rules="[{ required: true, message: '请输入用户名！' }]"
-      >
-        <a-input v-model:value="formState.username" />
-      </a-form-item>
+      
+      <div class="login-form-group">
+        <label>用户名</label>
+            <input v-model="formState.username" type="text" placeholder="请输入用户名" class="login-input" />
+      </div>
 
-      <a-form-item label="密码" name="password" :rules="[{ required: true, message: '请输入密码！' }]">
-        <a-input-password v-model:value="formState.password" />
-      </a-form-item>
+      <div class="login-form-group">
+        <label>密码</label>
+            <input v-model="formState.password" type="password" placeholder="请输入密码" class="login-input" />
+      </div>
 
       <a-form-item name="login" :wrapper-col="{ span: 24 }" style="text-align: center;">
         <a-button type="primary" html-type="submit" class="login-form-button" @click="handleLogin()" size="large" style="min-width: 120px; margin-right: 10px;"> 登录 </a-button>
@@ -123,4 +121,16 @@
   .login-links a:hover {
     color: #2980b9;
   }
+
+  .login-form-group {
+    margin-bottom: 15px;
+  }
+
+  .login-form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: #333;
+  }
+
 </style>
