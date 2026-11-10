@@ -1,3 +1,42 @@
+<div align="center">
+
+# 🧬 CrossArch-Analyzer
+
+**LLM agents + static analysis for cross-architecture (x86 / ARM / RISC-V) C/C++ code**
+**大模型 Agent + 静态分析的跨架构 C/C++ 代码分析与修复**
+
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
+![C++](https://img.shields.io/badge/C++-00599C?style=flat-square&logo=cplusplus&logoColor=white)
+![Flask](https://img.shields.io/badge/Flask-000000?style=flat-square&logo=flask&logoColor=white)
+![tree-sitter](https://img.shields.io/badge/tree--sitter-2E7D32?style=flat-square)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+
+</div>
+
+---
+
+## 📖 Overview · 简介
+
+**English** — The tool finds architecture-specific code (SIMD intrinsics, `arch/` and platform macros, etc.) in large C/C++ projects such as Eigen. It uses **tree-sitter static analysis** for the bulk of the work and calls **LLM agents** only for ambiguous regions. Errors found by the static analyser are clustered (sentence embeddings + K-means), so the LLM repairs only representative lines. This cuts token cost substantially.
+
+**中文** — 面向 Eigen 等大型 C/C++ 项目，自动识别与体系结构相关的代码（SIMD 指令、`arch/` 目录、平台宏等）。主体工作由 **tree-sitter 静态分析** 完成，只有模糊的部分才交给 **LLM Agent**。静态分析发现的错误行先做聚类（句向量 + K-means），大模型只修复其中有代表性的行，从而大幅降低 Token 开销。
+
+## 🗂️ Components · 模块
+
+| Path · 路径 | Description · 说明 |
+| --- | --- |
+| [`LLM/`](LLM/) | Analyzer core: pre-screening, static analysis, agents, report generation ([details](LLM/README.md)) · 分析器核心 |
+| `code-annotation-backend-master/` | Flask backend serving the analysis API · Flask 后端 |
+| `code-annotation-frontend/` | Web front-end for browsing annotations · 前端标注界面 |
+| `run.sh` / `run.bat` | One-click launch scripts · 一键启动脚本 |
+
+```text
+Pre-screening ─► Static analysis (tree-sitter) ─► LLM agent completion ─► Architecture report
+  预筛选              批量静态分析                      Agent 补全分析               结构化报告
+```
+
+---
+
 ### 项目流程概述
 
 该项目的目标是通过静态分析和大语言模型（LLM）的协作，逐步修复代码中的错误。在这个流程中，首先执行静态代码分析来检测错误，然后根据分析结果选择较为普遍的错误类型，再通过大模型进行针对性的修复。这个过程会重复进行，直到静态分析结果显示错误已经得到显著修复为止。
